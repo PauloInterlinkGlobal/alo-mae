@@ -1,0 +1,6 @@
+{
+  "name": "Alô mãe — Conexão que cuida",
+  "description": "Sistema integrado de controlo de acessos biométricos escolares por reconhecimento facial, notificações em tempo real para encarregados de educação e gestão escolar.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

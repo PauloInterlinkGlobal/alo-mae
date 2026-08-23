@@ -1,0 +1,115 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --primary-container: #0D1B3D;
+    --secondary: #143A7B;
+    --secondary-hover: #0F2D61;
+    --accent-blue: #3D5D9F;
+    --light-blue: #96B5FE;
+    --success: #198754;
+    --success-bg: #D1E7DD;
+    --success-text: #0F5132;
+    --warning: #E65100;
+    --warning-bg: #FFE0B2;
+    --error: #BA1A1A;
+    --error-bg: #FFDAD6;
+  }
+}
+
+@keyframes scan-laser {
+  0% {
+    top: 0%;
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    top: 98%;
+    opacity: 0.9;
+  }
+}
+
+.scanner-laser {
+  animation: scan-laser 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+@keyframes radar-pulse {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(0.96);
+    opacity: 0.8;
+  }
+}
+
+.radar-ring {
+  animation: radar-pulse 3s ease-in-out infinite;
+}
+
+.tech-pattern-dark {
+  background-color: #0D1B3D;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(150, 181, 254, 0.08) 1.5px, transparent 1.5px),
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 24px 24px, 48px 48px, 48px 48px;
+}
+
+.tech-pattern-light {
+  background-color: #F8F9FF;
+  background-image: radial-gradient(circle at 2px 2px, rgba(13, 27, 61, 0.04) 1px, transparent 0);
+  background-size: 20px 20px;
+}
+
+.glass-panel-white {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(229, 231, 235, 0.8);
+}
+
+.glass-panel-dark {
+  background: rgba(13, 27, 61, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(150, 181, 254, 0.2);
+}
+
+/* Custom modern scrollbars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(13, 27, 61, 0.15);
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(13, 27, 61, 0.3);
+}
+
+.custom-scrollbar-dark::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar-dark::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 9999px;
+}
+.custom-scrollbar-dark::-webkit-scrollbar-thumb {
+  background: rgba(150, 181, 254, 0.25);
+  border-radius: 9999px;
+}
+.custom-scrollbar-dark::-webkit-scrollbar-thumb:hover {
+  background: rgba(150, 181, 254, 0.45);
+}
