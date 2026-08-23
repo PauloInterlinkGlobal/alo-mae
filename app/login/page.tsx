@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSystem } from '@/lib/context';
 import { UserRole } from '@/lib/types';
-import { Logo } from '@/components/Logo';
+import { Logo } from '@/components/LogoImg';
 import {
   Lock,
   Mail,

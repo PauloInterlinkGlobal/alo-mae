@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSystem } from '@/lib/context';
-import { Logo } from '@/components/Logo';
+import { Logo } from '@/components/LogoImg';
 import { Bell, HeartPulse, ChevronDown, LogOut, ShieldCheck, User } from 'lucide-react';
 
 export const PaiHeader: React.FC = () => {

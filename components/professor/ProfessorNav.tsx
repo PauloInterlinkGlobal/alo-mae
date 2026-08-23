@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Logo } from '@/components/Logo';
+import { Logo } from '@/components/LogoImg';
 import { useSystem } from '@/lib/context';
 import { Users, Send, LogOut, BookOpen, Clock, UserCheck } from 'lucide-react';
 

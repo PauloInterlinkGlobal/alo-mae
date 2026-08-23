@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSystem } from '@/lib/context';
 import { UserRole } from '@/lib/types';
 import { ShieldAlert, LogIn, ArrowRight } from 'lucide-react';
-import { Logo } from '@/components/Logo';
+import { Logo } from '@/components/LogoImg';
 
 interface RouteGuardProps {
   children: React.ReactNode;

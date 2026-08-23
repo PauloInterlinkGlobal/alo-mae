@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Student, MedicalClinic } from '@/lib/types';
-import { Logo } from './Logo';
+import { Logo } from './LogoImg';
 import { Phone, Shield, FileText, CheckCircle, Printer, X, Hospital } from 'lucide-react';
 
 interface GuiaAtendimentoModalProps {

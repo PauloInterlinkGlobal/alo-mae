@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Logo } from '@/components/Logo';
+import { Logo } from '@/components/LogoImg';
 import {
   LayoutDashboard,
   ShieldCheck,

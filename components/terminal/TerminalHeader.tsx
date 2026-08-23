@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Logo } from '@/components/Logo';
+import { Logo } from '@/components/LogoImg';
 import { Wifi, ShieldCheck, Clock, MonitorCheck, ArrowLeft } from 'lucide-react';
 
 export const TerminalHeader: React.FC = () => {

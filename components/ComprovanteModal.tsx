@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { AccessLog } from '@/lib/types';
-import { Logo } from './Logo';
+import { Logo } from './LogoImg';
 import { CheckCircle2, QrCode, ShieldCheck, Download, Printer, X } from 'lucide-react';
 
 interface ComprovanteModalProps {
