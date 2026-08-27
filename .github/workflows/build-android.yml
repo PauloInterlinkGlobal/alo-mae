@@ -2,6 +2,15 @@ name: Build Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'Tipo de build'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
   push:
     branches:
       - main
@@ -15,7 +24,7 @@ concurrency:
 
 jobs:
   build-apk:
-    name: Compilar APK Android (Debug)
+    name: Compilar APK Android
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -24,7 +33,7 @@ jobs:
       - name: 📥 Checkout do Repositório
         uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js runtime with npm cache
+      # Step 2: Set up Node.js 24 with npm cache
       - name: 🟢 Configurar Node.js 24
         uses: actions/setup-node@v4
         with:
@@ -78,33 +87,69 @@ jobs:
         run: |
           chmod +x android/gradlew
 
-      # Step 10: Assemble Android Debug APK
+      # Step 10A: Decodificar Keystore para Release (se selecionado)
+      - name: 🔐 Configurar Keystore para Release
+        if: ${{ (inputs.build_type == 'release') && env.HAS_KEYSTORE == 'true' }}
+        env:
+          HAS_KEYSTORE: ${{ secrets.KEYSTORE_BASE64 != '' || secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+          KS_BASE64: ${{ secrets.KEYSTORE_BASE64 || secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KS_BASE64" | base64 -d > android/app/alomae-release.keystore
+          echo "✅ Keystore decodificada com sucesso."
+
+      # Step 10B: Compilar APK Debug (padrão ou push)
       - name: 📱 Compilar Android Debug APK
+        if: ${{ inputs.build_type != 'release' }}
         run: |
           cd android
           ./gradlew assembleDebug --stacktrace --no-daemon
+
+      # Step 10C: Compilar APK Release (se selecionado)
+      - name: 📱 Compilar Android Release APK
+        if: ${{ inputs.build_type == 'release' }}
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS || secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd android
+          if [ -f "app/alomae-release.keystore" ] && [ -n "$KEYSTORE_PASSWORD" ]; then
+            echo "Compilando Release APK assinado..."
+            ./gradlew assembleRelease \
+              -Pandroid.injected.signing.store.file=app/alomae-release.keystore \
+              -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
+              --stacktrace --no-daemon
+          else
+            echo "Keystore não configurada nos secrets. Compilando Release APK sem assinatura personalizada..."
+            ./gradlew assembleRelease --stacktrace --no-daemon
+          fi
 
       # Step 11: Locate and prepare APK artifact
       - name: 🔎 Localizar e Organizar APK Gerado
         id: locate_apk
         run: |
-          APK_FILE=$(find android/app/build/outputs/apk/debug/ -type f -name "*.apk" | head -n 1)
+          APK_FILE=$(find android/app/build/outputs/apk/ -type f -name "*.apk" | head -n 1)
           if [ -z "$APK_FILE" ]; then
             echo "❌ ERRO: Nenhum arquivo APK foi encontrado após o build do Gradle!"
             exit 1
           fi
           echo "APK encontrado em: $APK_FILE"
-          cp "$APK_FILE" ./alo-mae-debug.apk
-          APK_SIZE=$(du -h ./alo-mae-debug.apk | cut -f1)
-          echo "apk_path=./alo-mae-debug.apk" >> $GITHUB_OUTPUT
+          BUILD_NAME="${{ inputs.build_type || 'debug' }}"
+          FINAL_NAME="alo-mae-${BUILD_NAME}.apk"
+          cp "$APK_FILE" "./$FINAL_NAME"
+          APK_SIZE=$(du -h "./$FINAL_NAME" | cut -f1)
+          echo "apk_path=./$FINAL_NAME" >> $GITHUB_OUTPUT
+          echo "apk_name=$FINAL_NAME" >> $GITHUB_OUTPUT
           echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
 
       # Step 12: Upload APK as GitHub Actions Artifact
-      - name: 🚀 Publicar Artifact (alo-mae-debug-apk)
+      - name: 🚀 Publicar Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: alo-mae-debug-apk
-          path: ./alo-mae-debug.apk
+          name: ${{ steps.locate_apk.outputs.apk_name }}
+          path: ${{ steps.locate_apk.outputs.apk_path }}
           retention-days: 14
 
       # Step 13: Generate GitHub Actions Summary
@@ -116,19 +161,14 @@ jobs:
           echo "|---|---|" >> $GITHUB_STEP_SUMMARY
           echo "| **Aplicação** | Alô mãe — Conexão que cuida |" >> $GITHUB_STEP_SUMMARY
           echo "| **Application ID** | \`ao.alomaae.app\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Tipo de Build** | Android Debug APK |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Nome do Arquivo** | \`alo-mae-debug.apk\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tipo de Build** | ${{ inputs.build_type || 'debug' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Nome do Arquivo** | \`${{ steps.locate_apk.outputs.apk_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Tamanho** | \`${{ steps.locate_apk.outputs.apk_size }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Nome do Artifact** | \`alo-mae-debug-apk\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📲 Como baixar e instalar o APK:" >> $GITHUB_STEP_SUMMARY
           echo "1. Vá até a aba **Actions** neste repositório." >> $GITHUB_STEP_SUMMARY
           echo "2. Clique na execução recente do workflow **Build Android APK**." >> $GITHUB_STEP_SUMMARY
-          echo "3. Role até a seção **Artifacts** na parte inferior da página." >> $GITHUB_STEP_SUMMARY
-          echo "4. Baixe o arquivo **alo-mae-debug-apk.zip**, extraia o **alo-mae-debug.apk** e instale no seu smartphone Android via WhatsApp, Google Drive ou cabo USB (\`adb install alo-mae-debug.apk\`)." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "---" >> $GITHUB_STEP_SUMMARY
-          echo "*Estrutura preparada para assinatura Release (Google Play AAB / Release APK) com suporte a secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD).*" >> $GITHUB_STEP_SUMMARY
+          echo "3. Role até a seção **Artifacts** na parte inferior da página e baixe o seu APK." >> $GITHUB_STEP_SUMMARY
 
 # ==============================================================================
 # GUIA DE EXPANSÃO PARA RELEASE / PRODUÇÃO (GOOGLE PLAY AAB / RELEASE APK)
