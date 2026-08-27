@@ -24,21 +24,18 @@ jobs:
       - name: 📥 Checkout do Repositório
         uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js runtime with npm cache
-      - name: 🟢 Configurar Node.js 20
+      # Step 2: Set up Node.js LTS runtime with npm cache
+      - name: 🟢 Configurar Node.js 22 LTS
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
 
       # Step 3: Install Node dependencies cleanly
       - name: 📦 Instalar Dependências Web
         run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+          npm ci
 
       # Step 4: Next.js Static Export Build
       - name: 🏗️ Compilar Aplicação Web (Next.js Static Export)
