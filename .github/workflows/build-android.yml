@@ -57,7 +57,15 @@ jobs:
         run: |
           npx cap sync android
 
-      # Step 7: Set up Java JDK 21 with Gradle Cache
+      # Step 7: Verify Android project structure
+      - name: 🔍 Verificar Integridade do Projeto Android
+        run: |
+          test -f android/variables.gradle || { echo "❌ ERRO: android/variables.gradle não encontrado!"; exit 1; }
+          test -f android/settings.gradle || { echo "❌ ERRO: android/settings.gradle não encontrado!"; exit 1; }
+          test -f android/gradlew || { echo "❌ ERRO: android/gradlew não encontrado!"; exit 1; }
+          echo "✅ Todos os arquivos do projeto Android validados com sucesso."
+
+      # Step 8: Set up Java JDK 21 with Gradle Cache
       - name: ☕ Configurar Java JDK 21 (Temurin)
         uses: actions/setup-java@v5
         with:
@@ -65,18 +73,18 @@ jobs:
           java-version: '21'
           cache: 'gradle'
 
-      # Step 8: Set execute permission for Gradle wrapper
+      # Step 9: Set execute permission for Gradle wrapper
       - name: 🔑 Dar Permissão de Execução ao Gradle Wrapper
         run: |
           chmod +x android/gradlew
 
-      # Step 9: Assemble Android Debug APK
+      # Step 10: Assemble Android Debug APK
       - name: 📱 Compilar Android Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
-      # Step 10: Locate and prepare APK artifact
+      # Step 11: Locate and prepare APK artifact
       - name: 🔎 Localizar e Organizar APK Gerado
         id: locate_apk
         run: |
@@ -91,7 +99,7 @@ jobs:
           echo "apk_path=./alo-mae-debug.apk" >> $GITHUB_OUTPUT
           echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
 
-      # Step 11: Upload APK as GitHub Actions Artifact
+      # Step 12: Upload APK as GitHub Actions Artifact
       - name: 🚀 Publicar Artifact (alo-mae-apk)
         uses: actions/upload-artifact@v4
         with:
@@ -99,7 +107,7 @@ jobs:
           path: ./alo-mae-debug.apk
           retention-days: 14
 
-      # Step 12: Generate GitHub Actions Summary
+      # Step 13: Generate GitHub Actions Summary
       - name: 📋 Resumo da Compilação
         run: |
           echo "## 🎉 Compilação do APK Android Concluída com Sucesso!" >> $GITHUB_STEP_SUMMARY
