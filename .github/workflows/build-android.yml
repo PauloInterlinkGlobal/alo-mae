@@ -100,10 +100,10 @@ jobs:
           echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
 
       # Step 12: Upload APK as GitHub Actions Artifact
-      - name: 🚀 Publicar Artifact (alo-mae-apk)
+      - name: 🚀 Publicar Artifact (alo-mae-debug-apk)
         uses: actions/upload-artifact@v4
         with:
-          name: alo-mae-apk
+          name: alo-mae-debug-apk
           path: ./alo-mae-debug.apk
           retention-days: 14
 
@@ -119,13 +119,13 @@ jobs:
           echo "| **Tipo de Build** | Android Debug APK |" >> $GITHUB_STEP_SUMMARY
           echo "| **Nome do Arquivo** | \`alo-mae-debug.apk\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Tamanho** | \`${{ steps.locate_apk.outputs.apk_size }}\` |" >> $GITHUB_STEP_SUMMARY
-          echo "| **Nome do Artifact** | \`alo-mae-apk\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Nome do Artifact** | \`alo-mae-debug-apk\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📲 Como baixar e instalar o APK:" >> $GITHUB_STEP_SUMMARY
           echo "1. Vá até a aba **Actions** neste repositório." >> $GITHUB_STEP_SUMMARY
           echo "2. Clique na execução recente do workflow **Build Android APK**." >> $GITHUB_STEP_SUMMARY
           echo "3. Role até a seção **Artifacts** na parte inferior da página." >> $GITHUB_STEP_SUMMARY
-          echo "4. Baixe o arquivo **alo-mae-apk.zip**, extraia o **alo-mae-debug.apk** e instale no seu smartphone Android via WhatsApp, Google Drive ou cabo USB (\`adb install alo-mae-debug.apk\`)." >> $GITHUB_STEP_SUMMARY
+          echo "4. Baixe o arquivo **alo-mae-debug-apk.zip**, extraia o **alo-mae-debug.apk** e instale no seu smartphone Android via WhatsApp, Google Drive ou cabo USB (\`adb install alo-mae-debug.apk\`)." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "*Estrutura preparada para assinatura Release (Google Play AAB / Release APK) com suporte a secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD).*" >> $GITHUB_STEP_SUMMARY
