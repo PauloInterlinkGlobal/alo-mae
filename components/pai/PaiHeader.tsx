@@ -21,8 +21,9 @@ export const PaiHeader: React.FC = () => {
   };
 
   return (
-    <header className="bg-[#0D1B3D] text-white border-b border-white/10 sticky top-0 z-40 shadow-lg">
+    <header className="bg-[#0D1B3D] text-white border-b border-white/10 sticky top-0 z-40 shadow-lg pt-[env(safe-area-inset-top)]">
       <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+
         {/* Brand */}
         <Link href="/pai/inicio" className="shrink-0">
           <Logo variant="light" size="sm" showSubtitle={false} />

@@ -5,6 +5,7 @@ import { SystemProvider, useSystem } from '@/lib/context';
 import { ComprovanteModal } from '@/components/ComprovanteModal';
 import { GuiaAtendimentoModal } from '@/components/GuiaAtendimentoModal';
 import { GlobalToast } from '@/components/GlobalToast';
+import { MobileAppBridge } from '@/components/MobileAppBridge';
 
 function GlobalModals() {
   const {
@@ -16,6 +17,7 @@ function GlobalModals() {
 
   return (
     <>
+      <MobileAppBridge />
       <ComprovanteModal
         log={selectedReceiptLog}
         onClose={() => setSelectedReceiptLog(null)}
@@ -30,6 +32,7 @@ function GlobalModals() {
     </>
   );
 }
+
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (

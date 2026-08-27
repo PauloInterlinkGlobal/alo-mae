@@ -1,5 +1,5 @@
 import React from 'react';
-import Image from 'next/image'
+import Image from 'next/image';
 
 interface LogoProps {
   variant?: 'dark' | 'light' | 'white';
@@ -14,26 +14,26 @@ export const Logo: React.FC<LogoProps> = ({
   showSubtitle = true,
   className = '',
 }) => {
-  const iconSize = size === 'sm' ? 24 : size === 'lg' ? 44 : 32;
+  const iconPixel = size === 'sm' ? 28 : size === 'lg' ? 44 : 34;
   const textSize = size === 'sm' ? 'text-lg' : size === 'lg' ? 'text-2xl' : 'text-xl';
   const subtitleSize = size === 'sm' ? 'text-[10px]' : size === 'lg' ? 'text-xs' : 'text-[11px]';
 
   const isLight = variant === 'light' || variant === 'white';
   const textColor = isLight ? 'text-white' : 'text-[#0D1B3D]';
   const subColor = isLight ? 'text-[#96B5FE]' : 'text-[#687280]';
-  const bubbleFill = isLight ? '#143A7B' : '#0D1B3D';
-  const bubbleStroke = isLight ? '#96B5FE' : '#143A7B';
 
   return (
     <div className={`flex items-center gap-2.5 select-none ${className}`}>
       {/* Stylized Speech Bubble with Mother & Child Heart Silhouette */}
-      <div className="relative shrink-0 flex items-center justify-center">
+      <div className="relative shrink-0 flex items-center justify-center overflow-hidden rounded-xl">
         <Image
-      src="/logo2.jpeg"
-      width={30}
-      height={30}
-      alt="Picture of the author"
-    />
+          src="/logo2.jpeg"
+          width={iconPixel}
+          height={iconPixel}
+          alt="Alô mãe"
+          className="object-contain rounded-lg"
+          priority
+        />
       </div>
 
       {/* Brand Typography */}
@@ -52,3 +52,4 @@ export const Logo: React.FC<LogoProps> = ({
     </div>
   );
 };
+
