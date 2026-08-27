@@ -147,7 +147,7 @@ export default function PaiInicioPage() {
               <span>Validação biométrica facial confirmada</span>
             </span>
             <Link
-              href={`/pai/comprovante/${latestLog.id}`}
+              href={`/pai/comprovante?id=${latestLog.id}`}
               className="text-xs font-semibold text-[#143A7B] hover:underline flex items-center gap-1"
             >
               <span>Ver Comprovante</span>

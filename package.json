@@ -8,6 +8,7 @@
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
     "cap:build": "npx cap build android",
+    "android:build": "cd android && ./gradlew assembleDebug",
     "start": "next start",
     "lint": "eslint .",
     "clean": "next clean"

@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'ao.interlink.alomae',
+  appId: 'ao.alomaae.app',
   appName: 'Alô mãe',
   webDir: 'out',
   server: {

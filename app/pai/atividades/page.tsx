@@ -162,7 +162,7 @@ export default function PaiAtividadesPage() {
                 </button>
 
                 <Link
-                  href={`/pai/comprovante/${log.id}`}
+                  href={`/pai/comprovante?id=${log.id}`}
                   className="text-xs font-medium text-slate-500 hover:text-slate-900 flex items-center gap-1"
                 >
                   <span>Página Legal</span>

@@ -1,0 +1,143 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    name: Compilar APK Android (Debug)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # Step 1: Checkout repository
+      - name: 📥 Checkout do Repositório
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Node.js runtime with npm cache
+      - name: 🟢 Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # Step 3: Install Node dependencies cleanly
+      - name: 📦 Instalar Dependências Web
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      # Step 4: Next.js Static Export Build
+      - name: 🏗️ Compilar Aplicação Web (Next.js Static Export)
+        run: |
+          echo "Executando build estático do Next.js..."
+          npm run build
+
+      # Step 5: Verify static export output directory
+      - name: 🔍 Verificar Diretório 'out/'
+        run: |
+          if [ ! -d "out" ] || [ ! -f "out/index.html" ]; then
+            echo "❌ ERRO: O diretório 'out/' não foi gerado ou está vazio!"
+            exit 1
+          fi
+          echo "✅ Diretório 'out/' validado com sucesso."
+
+      # Step 6: Sync web assets with Capacitor Android project
+      - name: 🔄 Sincronizar Capacitor com Android
+        run: |
+          npx cap sync android
+
+      # Step 7: Set up Java JDK 21 with Gradle Cache
+      - name: ☕ Configurar Java JDK 21 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'gradle'
+
+      # Step 8: Set execute permission for Gradle wrapper
+      - name: 🔑 Dar Permissão de Execução ao Gradle Wrapper
+        run: |
+          chmod +x android/gradlew
+
+      # Step 9: Assemble Android Debug APK
+      - name: 📱 Compilar Android Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+
+      # Step 10: Locate and prepare APK artifact
+      - name: 🔎 Localizar e Organizar APK Gerado
+        id: locate_apk
+        run: |
+          APK_FILE=$(find android/app/build/outputs/apk/debug/ -type f -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "❌ ERRO: Nenhum arquivo APK foi encontrado após o build do Gradle!"
+            exit 1
+          fi
+          echo "APK encontrado em: $APK_FILE"
+          cp "$APK_FILE" ./alo-mae-debug.apk
+          APK_SIZE=$(du -h ./alo-mae-debug.apk | cut -f1)
+          echo "apk_path=./alo-mae-debug.apk" >> $GITHUB_OUTPUT
+          echo "apk_size=$APK_SIZE" >> $GITHUB_OUTPUT
+
+      # Step 11: Upload APK as GitHub Actions Artifact
+      - name: 🚀 Publicar Artifact (alo-mae-apk)
+        uses: actions/upload-artifact@v4
+        with:
+          name: alo-mae-apk
+          path: ./alo-mae-debug.apk
+          retention-days: 14
+
+      # Step 12: Generate GitHub Actions Summary
+      - name: 📋 Resumo da Compilação
+        run: |
+          echo "## 🎉 Compilação do APK Android Concluída com Sucesso!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Propriedade | Valor |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Aplicação** | Alô mãe — Conexão que cuida |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Application ID** | \`ao.alomaae.app\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tipo de Build** | Android Debug APK |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Nome do Arquivo** | \`alo-mae-debug.apk\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tamanho** | \`${{ steps.locate_apk.outputs.apk_size }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Nome do Artifact** | \`alo-mae-apk\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📲 Como baixar e instalar o APK:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Vá até a aba **Actions** neste repositório." >> $GITHUB_STEP_SUMMARY
+          echo "2. Clique na execução recente do workflow **Build Android APK**." >> $GITHUB_STEP_SUMMARY
+          echo "3. Role até a seção **Artifacts** na parte inferior da página." >> $GITHUB_STEP_SUMMARY
+          echo "4. Baixe o arquivo **alo-mae-apk.zip**, extraia o **alo-mae-debug.apk** e instale no seu smartphone Android via WhatsApp, Google Drive ou cabo USB (\`adb install alo-mae-debug.apk\`)." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*Estrutura preparada para assinatura Release (Google Play AAB / Release APK) com suporte a secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD).*" >> $GITHUB_STEP_SUMMARY
+
+# ==============================================================================
+# GUIA DE EXPANSÃO PARA RELEASE / PRODUÇÃO (GOOGLE PLAY AAB / RELEASE APK)
+# ==============================================================================
+# Quando desejar gerar versões assinadas para a Google Play Store:
+# 1. Crie uma keystore localmente:
+#    keytool -genkey -v -keystore release.keystore -alias alomae -keyalg RSA -keysize 2048 -validity 10000
+# 2. Converta para base64:
+#    base64 -w 0 release.keystore > keystore.base64
+# 3. Adicione os seguintes Secrets no GitHub (Settings -> Secrets and variables -> Actions):
+#    - ANDROID_KEYSTORE_BASE64
+#    - ANDROID_KEYSTORE_PASSWORD
+#    - ANDROID_KEY_ALIAS
+#    - ANDROID_KEY_PASSWORD
+# 4. No workflow, inclua o comando:
+#    cd android && ./gradlew bundleRelease (para AAB) ou ./gradlew assembleRelease (para APK)
+# ==============================================================================
