@@ -24,11 +24,11 @@ jobs:
       - name: 📥 Checkout do Repositório
         uses: actions/checkout@v4
 
-      # Step 2: Set up Node.js LTS runtime with npm cache
-      - name: 🟢 Configurar Node.js 22 LTS
+      # Step 2: Set up Node.js runtime with npm cache
+      - name: 🟢 Configurar Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: 'npm'
           cache-dependency-path: 'package-lock.json'
 
