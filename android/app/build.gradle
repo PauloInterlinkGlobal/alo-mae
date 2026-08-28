@@ -4,7 +4,7 @@ android {
     namespace = "ao.alomaae.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "ao.alomaae.app"
+        applicationId "ao.interlink.alomae"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
