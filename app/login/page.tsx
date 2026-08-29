@@ -81,7 +81,7 @@ export default function LoginPage() {
         <button
           onClick={() => router.push('/aluno/terminal')}
           className="flex items-center gap-2 bg-blue-950/80 hover:bg-[#143A7B] border border-blue-500/30 text-blue-200 hover:text-white px-3.5 py-1.5 rounded-full text-xs font-medium transition-all shadow-sm"
-          hidden
+          
         >
           <ScanFace className="w-4 h-4 text-cyan-400" />
           <span className="hidden sm:inline">Modo Dispositivo:</span>
@@ -133,7 +133,7 @@ export default function LoginPage() {
                       ? 'bg-white text-[#143A7B] shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
-                  hidden
+                
                 >
                   <GraduationCap className="w-4 h-4 mb-1" />
                   <span>Professor</span>
@@ -147,7 +147,7 @@ export default function LoginPage() {
                       ? 'bg-white text-[#143A7B] shadow-sm'
                       : 'text-slate-500 hover:text-slate-800'
                   }`}
-                  hidden
+                  
                 >
                   <Building2 className="w-4 h-4 mb-1" />
                   <span>Instituição</span>
