@@ -1,0 +1,191 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Bloqueio total por omissão na raiz
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================================
+    // Funções Auxiliares Reutilizáveis (RBAC & Segurança)
+    // ==========================================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function userExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getRole() {
+      return request.auth.token.role != null
+        ? request.auth.token.role
+        : (userExists() ? getUserDoc().role : 'encarregado');
+    }
+
+    function isInstituicao() {
+      return isSignedIn() && (getRole() == 'instituicao' || request.auth.token.admin == true);
+    }
+
+    function isProfessor() {
+      return isSignedIn() && (getRole() == 'professor');
+    }
+
+    function isEncarregado() {
+      return isSignedIn() && (getRole() == 'encarregado' || getRole() == 'pai');
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ==========================================================
+    // 1. Coleção: users/{userId}
+    // ==========================================================
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isInstituicao();
+      allow list: if isInstituicao() || (isSignedIn() && resource.data.uid == request.auth.uid);
+
+      allow create: if isInstituicao() || (isOwner(userId) && incoming().role in ['encarregado', 'professor', 'instituicao']);
+
+      allow update: if (
+        isOwner(userId) &&
+        incoming().role == existing().role &&
+        (incoming().uid == existing().uid || incoming().id == existing().id) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['nome', 'telefone', 'avatarUrl', 'name', 'phone', 'escola_nome', 'schoolName', 'updatedAt'])
+      ) || isInstituicao();
+
+      allow delete: if isInstituicao();
+    }
+
+    // ==========================================================
+    // 2. Coleção: alunos/{alunoId}
+    // ==========================================================
+    match /alunos/{alunoId} {
+      allow get: if isInstituicao() ||
+                    isProfessor() ||
+                    (isEncarregado() && resource.data.encarregado_id == request.auth.uid);
+
+      allow list: if isInstituicao() ||
+                     isProfessor() ||
+                     (isEncarregado() && resource.data.encarregado_id == request.auth.uid);
+
+      allow create: if isInstituicao() && isValidId(alunoId);
+
+      allow update: if isInstituicao() ||
+                       (isProfessor() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status_presenca', 'ultimo_acesso']));
+
+      allow delete: if isInstituicao();
+    }
+
+    // ==========================================================
+    // 3. Coleção: turmas/{turmaId}
+    // ==========================================================
+    match /turmas/{turmaId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isInstituicao();
+    }
+
+    // ==========================================================
+    // 4. Coleção: turmas_professores/{assocId}
+    // ==========================================================
+    match /turmas_professores/{assocId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isInstituicao();
+    }
+
+    // ==========================================================
+    // 5. Coleção: mini_pautas/{pautaId}
+    // ==========================================================
+    match /mini_pautas/{pautaId} {
+      // Encarregados só podem ler pautas com status aprovada
+      allow get, list: if isInstituicao() ||
+                          (isProfessor() && resource.data.professor_id == request.auth.uid) ||
+                          (isEncarregado() && resource.data.status == 'aprovada');
+
+      // Professor pode criar apenas como rascunho em seu próprio ID
+      allow create: if (
+        isProfessor() &&
+        incoming().professor_id == request.auth.uid &&
+        incoming().status == 'rascunho'
+      ) || isInstituicao();
+
+      // Professor só edita se for rascunho ou rejeitada; Instituição aprova/rejeita
+      allow update: if (
+        isProfessor() &&
+        existing().professor_id == request.auth.uid &&
+        incoming().professor_id == existing().professor_id &&
+        existing().status in ['rascunho', 'rejeitada'] &&
+        incoming().status in ['rascunho', 'submetida']
+      ) || isInstituicao();
+
+      allow delete: if isInstituicao();
+    }
+
+    // ==========================================================
+    // 6. Coleção: presencas_biometricas/{presencaId}
+    // ==========================================================
+    match /presencas_biometricas/{presencaId} {
+      allow get, list: if isInstituicao() ||
+                          isProfessor() ||
+                          (isEncarregado() && (resource.data.aluno_id != null));
+
+      allow create: if isSignedIn() && isValidId(presencaId);
+      allow update, delete: if isInstituicao();
+    }
+
+    // ==========================================================
+    // 7. Compatibilidade Legada (students, accessLogs, notifications, medicalClinics)
+    // ==========================================================
+    match /students/{studentId} {
+      allow read: if isSignedIn();
+      allow write: if isInstituicao() || isProfessor();
+    }
+
+    match /accessLogs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if false;
+      allow delete: if isInstituicao();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn();
+      allow create: if isInstituicao() || isProfessor();
+      allow update: if isOwner(resource.data.targetUserUid) || isInstituicao() || isEncarregado();
+      allow delete: if isInstituicao();
+    }
+
+    match /medicalClinics/{clinicId} {
+      allow read: if isSignedIn();
+      allow write: if isInstituicao();
+    }
+
+    match /clinics/{clinicId} {
+      allow read: if isSignedIn();
+      allow write: if isInstituicao();
+    }
+
+    match /classStats/{classId} {
+      allow read: if isSignedIn();
+      allow write: if isInstituicao();
+    }
+  }
+}

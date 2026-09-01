@@ -12,11 +12,11 @@ export default function RootIndexPage() {
     if (!isAuthenticated || !currentUser) {
       router.replace('/login');
     } else {
-      if (currentUser.role === 'pai') {
+      if (currentUser.role === 'pai' || currentUser.role === 'encarregado') {
         router.replace('/pai/inicio');
       } else if (currentUser.role === 'professor') {
         router.replace('/professor/turma');
-      } else if (currentUser.role === 'instituicao') {
+      } else if (currentUser.role === 'instituicao' || currentUser.role === 'admin') {
         router.replace('/admin/dashboard');
       } else {
         router.replace('/login');

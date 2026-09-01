@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useSystem } from '@/lib/context';
+import { AccessLog } from '@/lib/types';
 import {
   ScanFace,
   Fingerprint,
@@ -24,7 +25,7 @@ export default function AdminTerminalSimuladoPage() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0].id);
   const [isWebcamActive, setIsWebcamActive] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [lastLog, setLastLog] = useState<ReturnType<typeof registerBiometricAccess> | null>(null);
+  const [lastLog, setLastLog] = useState<AccessLog | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const currentStudent = students.find((s) => s.id === selectedStudentId) || students[0];
@@ -54,9 +55,9 @@ export default function AdminTerminalSimuladoPage() {
 
   const handleSimulate = () => {
     setIsScanning(true);
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsScanning(false);
-      const log = registerBiometricAccess(currentStudent.id, accessType, 'facial');
+      const log = await registerBiometricAccess(currentStudent.id, accessType, 'facial');
       setLastLog(log);
       try {
         confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 } });

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   Student,
   AccessLog,
@@ -11,6 +11,13 @@ import {
   NotificationType,
   UserAccount,
   UserRole,
+  Aluno,
+  Turma,
+  TurmaProfessor,
+  MiniPauta,
+  NotaAluno,
+  PresencaBiometrica,
+  GuiaMedica,
 } from './types';
 import {
   INITIAL_STUDENTS,
@@ -21,6 +28,23 @@ import {
   MOCK_USERS,
 } from './mock-data';
 import { audioManager } from './sound';
+import {
+  seedInitialFirestoreData,
+  listenAlunos,
+  listenPresencasRecentes,
+  listenMiniPautas,
+  registarPresencaBiometrica as firestoreRegisterPresenca,
+  updateGuiaMedica as firestoreUpdateGuiaMedica,
+  criarMiniPauta as firestoreCriarMiniPauta,
+  salvarNotasMiniPauta as firestoreSalvarNotas,
+  submeterMiniPauta as firestoreSubmeterPauta,
+  aprovarMiniPauta as firestoreAprovarPauta,
+  rejeitarMiniPauta as firestoreRejeitarPauta,
+  getUserProfile,
+  updateUserProfile as firestoreUpdateProfile,
+  getTurmas,
+  getTurmasProfessores,
+} from './firebase-services';
 
 interface SystemContextType {
   currentUser: UserAccount | null;
@@ -29,6 +53,15 @@ interface SystemContextType {
   logout: () => void;
   isTerminalAuthorized: boolean;
   setTerminalAuthorized: (val: boolean) => void;
+
+  // Real-time Firestore Entities
+  alunos: Aluno[];
+  turmas: Turma[];
+  turmasProfessores: TurmaProfessor[];
+  miniPautas: MiniPauta[];
+  presencasBiometricas: PresencaBiometrica[];
+
+  // Legacy & View Compatibility
   students: Student[];
   logs: AccessLog[];
   notifications: SchoolNotification[];
@@ -42,12 +75,15 @@ interface SystemContextType {
   setSelectedReceiptLog: (log: AccessLog | null) => void;
   isSimulatingWebcam: boolean;
   setIsSimulatingWebcam: (val: boolean) => void;
+
+  // Actions directly wired to Firestore
   registerBiometricAccess: (
     studentId: string,
     type: 'entry' | 'exit',
     method: 'facial' | 'fingerprint' | 'manual',
     location?: string
-  ) => AccessLog;
+  ) => Promise<AccessLog>;
+
   sendTeacherNotification: (
     type: NotificationType,
     target: 'all' | string,
@@ -56,17 +92,27 @@ interface SystemContextType {
     reunionDate?: string,
     reunionTime?: string
   ) => void;
+
   updateStudentStatus: (studentId: string, status: AttendanceStatus) => void;
+  updateGuiaMedica: (alunoId: string, guia: GuiaMedica) => Promise<void>;
+
+  // Mini Pautas Operations (Professor & Direção)
+  criarMiniPauta: (pauta: Omit<MiniPauta, 'id' | 'status'>) => Promise<string>;
+  salvarNotas: (pautaId: string, notas: NotaAluno[]) => Promise<void>;
+  submeterPauta: (pautaId: string) => Promise<void>;
+  aprovarPauta: (pautaId: string) => Promise<void>;
+  rejeitarPauta: (pautaId: string, motivo?: string) => Promise<void>;
+
   markNotificationAsRead: (id: string) => void;
   unreadCount: number;
   toastMessage: { title: string; desc: string; type: 'success' | 'info' | 'alert' } | null;
   dismissToast: () => void;
+  isFirestoreSyncing: boolean;
 }
 
 const SystemContext = createContext<SystemContextType | undefined>(undefined);
 
 export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Default session initializes with 'pai' to avoid flash, but can be switched at /login
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -80,6 +126,16 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   });
 
   const [isTerminalAuthorized, setTerminalAuthorized] = useState<boolean>(true);
+  const [isFirestoreSyncing, setIsFirestoreSyncing] = useState<boolean>(true);
+
+  // Firestore Real-time Collections
+  const [alunos, setAlunos] = useState<Aluno[]>([]);
+  const [turmas, setTurmas] = useState<Turma[]>([]);
+  const [turmasProfessores, setTurmasProfessores] = useState<TurmaProfessor[]>([]);
+  const [miniPautas, setMiniPautas] = useState<MiniPauta[]>([]);
+  const [presencasBiometricas, setPresencasBiometricas] = useState<PresencaBiometrica[]>([]);
+
+  // UI state
   const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
   const [logs, setLogs] = useState<AccessLog[]>(INITIAL_LOGS);
   const [notifications, setNotifications] = useState<SchoolNotification[]>(INITIAL_NOTIFICATIONS);
@@ -92,10 +148,107 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string; type: 'success' | 'info' | 'alert' } | null>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-
   const dismissToast = () => setToastMessage(null);
 
-  // Sync to local storage
+  // Convert Firestore Aluno to UI Student format
+  const mapAlunoToStudent = useCallback((a: Aluno): Student => {
+    return {
+      id: a.id,
+      matricula: a.matricula || `MAT-${a.id.slice(-5)}`,
+      name: a.nome_completo,
+      classId: a.turma_id === 'turma_10a' ? '1a' : a.turma_id,
+      className: a.turma_id === 'turma_10a' ? '10ª Classe A' : a.turma_id === 'turma_10b' ? '10ª Classe B' : '11ª Classe A',
+      schoolName: 'Colégio Horizonte de Luanda',
+      parentName: a.encarregado_id === 'user_pai_fernanda' ? 'Fernanda Silva' : 'Encarregado(a)',
+      parentPhone: a.encarregado_id === 'user_pai_fernanda' ? '+244 923 884 912' : '+244 924 551 092',
+      parentEmail: a.encarregado_id === 'user_pai_fernanda' ? 'fernanda.silva@email.com' : 'encarregado@email.com',
+      photoUrl: a.foto_biometrica_url || 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400',
+      status: a.status_presenca || 'present',
+      lastEntryTime: a.ultimo_acesso ? new Date(a.ultimo_acesso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '07:32',
+      biometricCode: a.biometric_code || `BIO-${a.id.toUpperCase()}`,
+      insurancePolicyId: a.guia_medica?.numero_apolice || 'SEG-ALO-2026-8821',
+      guiaMedica: a.guia_medica,
+    };
+  }, []);
+
+  // Initialize Firestore and Real-time Listeners
+  useEffect(() => {
+    let unsubscribeAlunos: (() => void) | undefined;
+    let unsubscribePresencas: (() => void) | undefined;
+    let unsubscribePautas: (() => void) | undefined;
+
+    async function initFirestore() {
+      setIsFirestoreSyncing(true);
+      try {
+        await seedInitialFirestoreData();
+
+        // Fetch Turmas & Professores
+        const [turmasList, tpList] = await Promise.all([
+          getTurmas(),
+          getTurmasProfessores(),
+        ]);
+        setTurmas(turmasList);
+        setTurmasProfessores(tpList);
+
+        // Listen to Alunos
+        unsubscribeAlunos = listenAlunos((firestoreAlunos) => {
+          if (firestoreAlunos.length > 0) {
+            setAlunos(firestoreAlunos);
+            const mappedStudents = firestoreAlunos.map(mapAlunoToStudent);
+            setStudents(mappedStudents);
+            setSelectedStudent((prev) => mappedStudents.find((s) => s.id === prev.id) || mappedStudents[0]);
+          }
+        });
+
+        // Listen to Presenças Biométricas
+        unsubscribePresencas = listenPresencasRecentes((firestorePresencas) => {
+          if (firestorePresencas.length > 0) {
+            setPresencasBiometricas(firestorePresencas);
+            const mappedLogs: AccessLog[] = firestorePresencas.map((p) => {
+              const d = new Date(p.data_hora);
+              return {
+                id: p.id,
+                studentId: p.aluno_id,
+                studentName: p.aluno_nome || 'Aluno',
+                studentPhoto: p.aluno_foto || 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400',
+                className: p.turma_nome || '10ª Classe A',
+                schoolName: 'Colégio Horizonte de Luanda',
+                type: p.tipo === 'entrada' ? 'entry' : 'exit',
+                timestamp: d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+                date: d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' }),
+                location: p.localizacao || 'Portaria Principal',
+                method: (p.metodo as 'facial' | 'fingerprint' | 'manual') || 'facial',
+                receiptCode: p.codigo_recibo || `REC-${p.id}`,
+                notified: true,
+                notifiedRecipient: 'Encarregado Notificado',
+                statusNote: 'Registado via Totem Biométrico',
+              };
+            });
+            setLogs(mappedLogs);
+          }
+        });
+
+        // Listen to Mini Pautas
+        unsubscribePautas = listenMiniPautas((firestorePautas) => {
+          setMiniPautas(firestorePautas);
+        });
+      } catch (err) {
+        console.warn('Erro na sincronização Firestore:', err);
+      } finally {
+        setIsFirestoreSyncing(false);
+      }
+    }
+
+    initFirestore();
+
+    return () => {
+      if (unsubscribeAlunos) unsubscribeAlunos();
+      if (unsubscribePresencas) unsubscribePresencas();
+      if (unsubscribePautas) unsubscribePautas();
+    };
+  }, [mapAlunoToStudent]);
+
+  // Sync current user to local storage
   useEffect(() => {
     if (currentUser && typeof window !== 'undefined') {
       localStorage.setItem('alomae_user', JSON.stringify(currentUser));
@@ -119,21 +272,36 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const normalizedInput = trimmedInput.toLowerCase();
     const normalizedDigits = trimmedInput.replace(/\D/g, '');
 
-    // 1. Direct role key check (pai, professor, instituicao) for internal transitions
+    // 1. Direct role key check
     let foundUser: UserAccount | undefined = MOCK_USERS[trimmedInput as UserRole];
 
-    // 2. Search by email or phone in MOCK_USERS
+    // 2. Search in mock users or Firestore profiles
     if (!foundUser) {
       foundUser = Object.values(MOCK_USERS).find((user) => {
         const uEmail = user.email.trim().toLowerCase();
-        const uPhone = user.phone.trim().toLowerCase();
-        const uPhoneDigits = user.phone.replace(/\D/g, '');
+        const phoneStr = user.phone || user.telefone || '';
+        const uPhone = phoneStr.trim().toLowerCase();
+        const uPhoneDigits = phoneStr.replace(/\D/g, '');
 
         if (uEmail === normalizedInput) return true;
-        if (uPhone === normalizedInput) return true;
+        if (uPhone && uPhone === normalizedInput) return true;
         if (normalizedDigits.length >= 7 && uPhoneDigits.includes(normalizedDigits)) return true;
         return false;
       });
+    }
+
+    // Try Firestore profile lookup if not matched
+    if (!foundUser && trimmedInput.startsWith('user_')) {
+      const p = await getUserProfile(trimmedInput);
+      if (p) {
+        foundUser = {
+          ...p,
+          id: p.uid,
+          name: p.nome,
+          phone: p.telefone,
+          schoolName: p.escola_nome || 'Colégio Horizonte de Luanda',
+        };
+      }
     }
 
     if (foundUser) {
@@ -143,7 +311,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
       setToastMessage({
         title: `Sessão iniciada como ${foundUser.role.toUpperCase()}`,
-        desc: `Bem-vindo(a), ${foundUser.name}!`,
+        desc: `Bem-vindo(a), ${foundUser.name || foundUser.nome}!`,
         type: 'success',
       });
       return true;
@@ -164,17 +332,36 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const registerBiometricAccess = (
+  const registerBiometricAccess = async (
     studentId: string,
     type: 'entry' | 'exit',
     method: 'facial' | 'fingerprint' | 'manual',
     location = 'Guarita Principal — Portaria 1'
-  ): AccessLog => {
+  ): Promise<AccessLog> => {
     const student = students.find((s) => s.id === studentId) || students[0];
     const now = new Date();
     const timeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
     const dateStr = now.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
     const receiptCode = `CF-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${timeStr.replace(/:/g, '')}-${student.id.toUpperCase()}`;
+
+    // 1. Write directly to Firestore `presencas_biometricas`
+    try {
+      await firestoreRegisterPresenca({
+        aluno_id: student.id,
+        aluno_nome: student.name,
+        aluno_foto: student.photoUrl,
+        turma_id: student.classId === '1a' ? 'turma_10a' : student.classId,
+        turma_nome: student.className,
+        data_hora: now.toISOString(),
+        tipo: type === 'entry' ? 'entrada' : 'saida',
+        status_reconhecimento: 'sucesso',
+        metodo: method,
+        localizacao: location,
+        codigo_recibo: receiptCode,
+      });
+    } catch (err) {
+      console.warn('Erro ao persistir presença biométrica no Firestore:', err);
+    }
 
     const newLog: AccessLog = {
       id: `log-${Date.now()}`,
@@ -194,10 +381,10 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       statusNote: `${student.parentName.split(' ')[0]} Notificado via Push`,
     };
 
-    // 1. Update logs feed
+    // Update in-memory fallback
     setLogs((prev) => [newLog, ...prev]);
 
-    // 2. Update Student status
+    // Update student presence status
     setStudents((prev) =>
       prev.map((s) => {
         if (s.id === student.id) {
@@ -212,7 +399,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })
     );
 
-    // 3. Update class stats
+    // Update class stats
     setClassStats((prev) =>
       prev.map((cls) => {
         if (cls.classId === student.classId) {
@@ -227,7 +414,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       })
     );
 
-    // 4. Create push notification for parent app
+    // Push notification for parent
     const newNotif: SchoolNotification = {
       id: `notif-${Date.now()}`,
       type: type === 'entry' ? 'access_entry' : 'access_exit',
@@ -246,14 +433,13 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setNotifications((prev) => [newNotif, ...prev]);
 
-    // Play sounds & Voice
+    // Sounds
     audioManager.playSuccessChime();
     audioManager.speakConfirmation(student.name, type);
 
-    // Trigger visual toast
     setToastMessage({
       title: `${type === 'entry' ? 'Entrada' : 'Saída'} Confirmada — Alô mãe`,
-      desc: `${student.name} • ${timeStr} • Notificação enviada para ${student.parentName}`,
+      desc: `${student.name} • ${timeStr} • Notificação sincronizada no Firestore`,
       type: 'success',
     });
 
@@ -290,8 +476,8 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       message: message || 'Mensagem enviada pelo professor.',
       studentId: targetStudent ? targetStudent.id : undefined,
       studentName: targetStudent ? targetStudent.name : 'Todos os Alunos da Turma',
-      className: '1º Ano A',
-      senderName: 'Profª. Maria Fernandes',
+      className: '10ª Classe A',
+      senderName: currentUser?.name || 'Profª. Maria Fernandes',
       senderRole: 'Professora Titular',
       date: 'Hoje',
       time: timeStr,
@@ -305,7 +491,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     setToastMessage({
       title: 'Notificação Push Enviada aos Pais!',
-      desc: target === 'all' ? 'Enviado para todos os encarregados da turma 1º Ano A' : `Enviado para os encarregados de ${targetStudent?.name}`,
+      desc: target === 'all' ? 'Enviado para todos os encarregados da turma 10ª Classe A' : `Enviado para os encarregados de ${targetStudent?.name}`,
       type: 'info',
     });
   };
@@ -332,7 +518,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           studentId: student.id,
           studentName: student.name,
           className: student.className,
-          senderName: 'Profª. Maria Fernandes',
+          senderName: currentUser?.name || 'Profª. Maria Fernandes',
           senderRole: 'Controlo de Presenças',
           date: 'Hoje',
           time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
@@ -346,6 +532,64 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       }
     }
+  };
+
+  const updateGuiaMedica = async (alunoId: string, guia: GuiaMedica) => {
+    await firestoreUpdateGuiaMedica(alunoId, guia);
+    setAlunos((prev) =>
+      prev.map((a) => (a.id === alunoId ? { ...a, guia_medica: guia } : a))
+    );
+    setToastMessage({
+      title: 'Guia Médica Atualizada!',
+      desc: 'Dados de saúde e seguro persistidos no Firestore.',
+      type: 'success',
+    });
+  };
+
+  const criarMiniPauta = async (pauta: Omit<MiniPauta, 'id' | 'status'>) => {
+    const id = await firestoreCriarMiniPauta(pauta);
+    setToastMessage({
+      title: 'Rascunho de Mini Pauta Criado',
+      desc: `Pauta para ${pauta.disciplina} salva no Firestore.`,
+      type: 'success',
+    });
+    return id;
+  };
+
+  const salvarNotas = async (pautaId: string, notas: NotaAluno[]) => {
+    await firestoreSalvarNotas(pautaId, notas);
+    setToastMessage({
+      title: 'Notas Salvas com Sucesso',
+      desc: 'Valores salvos no Firestore com cálculo automático da Média Final.',
+      type: 'success',
+    });
+  };
+
+  const submeterPauta = async (pautaId: string) => {
+    await firestoreSubmeterPauta(pautaId);
+    setToastMessage({
+      title: 'Mini Pauta Submetida para Aprovação',
+      desc: 'Enviada para validação da Direção Pedagógica.',
+      type: 'info',
+    });
+  };
+
+  const aprovarPauta = async (pautaId: string) => {
+    await firestoreAprovarPauta(pautaId);
+    setToastMessage({
+      title: 'Mini Pauta Aprovada!',
+      desc: 'Notas liberadas para visualização dos encarregados.',
+      type: 'success',
+    });
+  };
+
+  const rejeitarPauta = async (pautaId: string, motivo?: string) => {
+    await firestoreRejeitarPauta(pautaId, motivo);
+    setToastMessage({
+      title: 'Mini Pauta Rejeitada',
+      desc: 'Devolvida ao professor com as notas de ajuste.',
+      type: 'alert',
+    });
   };
 
   const markNotificationAsRead = (id: string) => {
@@ -363,6 +607,11 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         logout,
         isTerminalAuthorized,
         setTerminalAuthorized,
+        alunos,
+        turmas,
+        turmasProfessores,
+        miniPautas,
+        presencasBiometricas,
         students,
         logs,
         notifications,
@@ -379,10 +628,17 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         registerBiometricAccess,
         sendTeacherNotification,
         updateStudentStatus,
+        updateGuiaMedica,
+        criarMiniPauta,
+        salvarNotas,
+        submeterPauta,
+        aprovarPauta,
+        rejeitarPauta,
         markNotificationAsRead,
         unreadCount,
         toastMessage,
         dismissToast,
+        isFirestoreSyncing,
       }}
     >
       {children}

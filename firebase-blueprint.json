@@ -1,0 +1,143 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil de usuário no Firestore vinculado ao Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "nome": { "type": "string" },
+        "email": { "type": "string" },
+        "telefone": { "type": "string" },
+        "role": { "type": "string", "enum": ["instituicao", "professor", "encarregado"] },
+        "criado_em": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "instituicao_id": { "type": "string" },
+        "escola_nome": { "type": "string" }
+      },
+      "required": ["uid", "nome", "email", "telefone", "role"]
+    },
+    "Aluno": {
+      "title": "Aluno",
+      "description": "Registo cadastral, escolar e guia médica de emergência do aluno.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome_completo": { "type": "string" },
+        "turma_id": { "type": "string" },
+        "encarregado_id": { "type": "string" },
+        "foto_biometrica_url": { "type": "string" },
+        "guia_medica": {
+          "type": "object",
+          "properties": {
+            "tipagem_sanguinea": { "type": "string" },
+            "alergias": { "type": "array" },
+            "tem_seguro": { "type": "boolean" },
+            "tipo_seguro": { "type": "string" },
+            "seguradora": { "type": "string" },
+            "cobertura_detalhes": { "type": "string" },
+            "numero_apolice": { "type": "string" },
+            "contacto_emergencia": { "type": "string" }
+          },
+          "required": ["tipagem_sanguinea", "tem_seguro", "seguradora", "numero_apolice", "contacto_emergencia"]
+        },
+        "matricula": { "type": "string" },
+        "biometric_code": { "type": "string" },
+        "status_presenca": { "type": "string", "enum": ["present", "absent", "late"] }
+      },
+      "required": ["id", "nome_completo", "turma_id", "encarregado_id", "foto_biometrica_url", "guia_medica"]
+    },
+    "Turma": {
+      "title": "Turma",
+      "description": "Turma escolar cadastrada pela instituição.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nome": { "type": "string" },
+        "ano_lectivo": { "type": "number" },
+        "instituicao_id": { "type": "string" },
+        "sala": { "type": "string" }
+      },
+      "required": ["id", "nome", "ano_lectivo", "instituicao_id"]
+    },
+    "TurmaProfessor": {
+      "title": "TurmaProfessor",
+      "description": "Associação de docente e disciplina para uma turma.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "turma_id": { "type": "string" },
+        "professor_id": { "type": "string" },
+        "disciplina": { "type": "string" }
+      },
+      "required": ["id", "turma_id", "professor_id", "disciplina"]
+    },
+    "MiniPauta": {
+      "title": "MiniPauta",
+      "description": "Mini pauta trimestral com notas por disciplina e fluxo de aprovação.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "turma_id": { "type": "string" },
+        "turma_nome": { "type": "string" },
+        "disciplina": { "type": "string" },
+        "professor_id": { "type": "string" },
+        "professor_nome": { "type": "string" },
+        "trimestre": { "type": "number", "enum": [1, 2, 3] },
+        "ano_lectivo": { "type": "number" },
+        "status": { "type": "string", "enum": ["rascunho", "submetida", "aprovada", "rejeitada"] },
+        "data_envio": { "type": "string" },
+        "data_aprovacao": { "type": "string" },
+        "motivo_rejeicao": { "type": "string" },
+        "notas": { "type": "array" }
+      },
+      "required": ["id", "turma_id", "disciplina", "professor_id", "trimestre", "ano_lectivo", "status", "notas"]
+    },
+    "PresencaBiometrica": {
+      "title": "PresencaBiometrica",
+      "description": "Registo em tempo real de entrada ou saída biométrica do aluno.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "aluno_id": { "type": "string" },
+        "aluno_nome": { "type": "string" },
+        "aluno_foto": { "type": "string" },
+        "turma_id": { "type": "string" },
+        "turma_nome": { "type": "string" },
+        "data_hora": { "type": "string" },
+        "tipo": { "type": "string", "enum": ["entrada", "saida"] },
+        "status_reconhecimento": { "type": "string", "enum": ["sucesso", "falha"] },
+        "metodo": { "type": "string" },
+        "localizacao": { "type": "string" },
+        "codigo_recibo": { "type": "string" }
+      },
+      "required": ["id", "aluno_id", "turma_id", "data_hora", "tipo", "status_reconhecimento"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Perfis de utilizadores autenticados (instituicao, professor, encarregado)."
+    },
+    "/alunos/{alunoId}": {
+      "schema": { "$ref": "#/entities/Aluno" },
+      "description": "Cadastro escolar e Guia Médica dos alunos."
+    },
+    "/turmas/{turmaId}": {
+      "schema": { "$ref": "#/entities/Turma" },
+      "description": "Turmas da escola."
+    },
+    "/turmas_professores/{id}": {
+      "schema": { "$ref": "#/entities/TurmaProfessor" },
+      "description": "Atribuição de docentes e disciplinas por turma."
+    },
+    "/mini_pautas/{pautaId}": {
+      "schema": { "$ref": "#/entities/MiniPauta" },
+      "description": "Mini pautas com notas trimestrais e controle de aprovação."
+    },
+    "/presencas_biometricas/{id}": {
+      "schema": { "$ref": "#/entities/PresencaBiometrica" },
+      "description": "Registos de acessos biométricos."
+    }
+  }
+}

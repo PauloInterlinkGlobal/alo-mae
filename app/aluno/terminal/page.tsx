@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useSystem } from '@/lib/context';
+import { AccessLog } from '@/lib/types';
 import { TerminalHeader } from '@/components/terminal/TerminalHeader';
 import {
   ScanFace,
@@ -32,7 +33,7 @@ export default function AlunoTerminalPage() {
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0].id);
   const [isWebcamActive, setIsWebcamActive] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [lastConfirmedLog, setLastConfirmedLog] = useState<ReturnType<typeof registerBiometricAccess> | null>(null);
+  const [lastConfirmedLog, setLastConfirmedLog] = useState<AccessLog | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const currentStudent = students.find((s) => s.id === selectedStudentId) || students[0];
@@ -66,9 +67,9 @@ export default function AlunoTerminalPage() {
   const handleValidateScan = () => {
     setIsScanning(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       setIsScanning(false);
-      const log = registerBiometricAccess(currentStudent.id, accessType, authMethod);
+      const log = await registerBiometricAccess(currentStudent.id, accessType, authMethod);
       setLastConfirmedLog(log);
       try {
         confetti({ particleCount: 70, spread: 70, origin: { y: 0.6 } });

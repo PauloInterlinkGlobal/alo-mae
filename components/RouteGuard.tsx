@@ -44,12 +44,14 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
   if (!allowedRoles.includes(currentUser.role)) {
     const roleLabels: Record<UserRole, string> = {
       pai: 'Encarregado de Educação (Pai/Mãe)',
+      encarregado: 'Encarregado de Educação (Pai/Mãe)',
       professor: 'Professor(a) / Docente',
       instituicao: 'Administração / Instituição',
+      admin: 'Administração / Instituição',
     };
 
     const targetRoute =
-      currentUser.role === 'pai'
+      currentUser.role === 'pai' || currentUser.role === 'encarregado'
         ? '/pai/inicio'
         : currentUser.role === 'professor'
         ? '/professor/turma'

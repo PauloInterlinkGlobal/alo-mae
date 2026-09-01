@@ -11,6 +11,7 @@ import {
   ScanFace,
   School,
   ExternalLink,
+  GraduationCap,
 } from 'lucide-react';
 
 export const AdminSidebar: React.FC = () => {
@@ -22,6 +23,12 @@ export const AdminSidebar: React.FC = () => {
       href: '/admin/dashboard',
       icon: LayoutDashboard,
       desc: 'KPIs, gráficos e feed em tempo real',
+    },
+    {
+      label: 'Mini Pautas',
+      href: '/admin/mini-pautas',
+      icon: GraduationCap,
+      desc: 'Homologação e aprovação de notas',
     },
     {
       label: 'Seguro & Clínicas',

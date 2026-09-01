@@ -5,14 +5,14 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Logo } from '@/components/LogoImg';
 import { useSystem } from '@/lib/context';
-import { Users, Send, LogOut, BookOpen, Clock, UserCheck } from 'lucide-react';
+import { Users, Send, LogOut, BookOpen, Clock, UserCheck, FileSpreadsheet } from 'lucide-react';
 
 export const ProfessorNav: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { currentUser, logout, students } = useSystem();
 
-  const classStudents = students.filter((s) => s.classId === '1a');
+  const classStudents = students.filter((s) => s.classId === '1a' || s.classId === 'turma_10a');
   const presentCount = classStudents.filter((s) => s.status === 'present').length;
   const absentCount = classStudents.filter((s) => s.status === 'absent').length;
 
@@ -31,7 +31,7 @@ export const ProfessorNav: React.FC = () => {
             <div className="hidden sm:flex items-center gap-2">
               <div className="bg-[#143A7B] text-white px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 border border-blue-400/30">
                 <BookOpen className="w-3.5 h-3.5 text-blue-300" />
-                <span>1º Ano A</span>
+                <span>10ª Classe A</span>
               </div>
               <span className="text-xs text-blue-200">Sala 102 • Turno Manhã</span>
             </div>
@@ -49,6 +49,18 @@ export const ProfessorNav: React.FC = () => {
             >
               <Users className="w-4 h-4" />
               <span>Turma & Presenças</span>
+            </Link>
+
+            <Link
+              href="/professor/mini-pautas"
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                pathname === '/professor/mini-pautas'
+                  ? 'bg-[#143A7B] text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>Mini Pautas</span>
             </Link>
 
             <Link
@@ -88,7 +100,9 @@ export const ProfessorNav: React.FC = () => {
                 />
               </div>
               <div className="hidden lg:block text-left">
-                <p className="text-xs font-semibold text-white leading-tight">{currentUser?.name || 'Profª. Maria Fernandes'}</p>
+                <p className="text-xs font-semibold text-white leading-tight">
+                  {currentUser?.name || currentUser?.nome || 'Profª. Maria Fernandes'}
+                </p>
                 <p className="text-[10px] text-blue-200">Docente Titular</p>
               </div>
 

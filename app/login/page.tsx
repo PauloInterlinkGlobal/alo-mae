@@ -51,20 +51,21 @@ export default function LoginPage() {
         const matchedUser =
           Object.values(MOCK_USERS).find((user) => {
             const uEmail = user.email.trim().toLowerCase();
-            const uPhone = user.phone.trim().toLowerCase();
-            const uPhoneDigits = user.phone.replace(/\D/g, '');
+            const phoneStr = user.phone || user.telefone || '';
+            const uPhone = phoneStr.trim().toLowerCase();
+            const uPhoneDigits = phoneStr.replace(/\D/g, '');
 
             if (uEmail === normalizedInput) return true;
-            if (uPhone === normalizedInput) return true;
+            if (uPhone && uPhone === normalizedInput) return true;
             if (normalizedDigits.length >= 7 && uPhoneDigits.includes(normalizedDigits)) return true;
             return false;
           }) || MOCK_USERS[trimmedInput as keyof typeof MOCK_USERS] || MOCK_USERS.pai;
 
-        if (matchedUser.role === 'pai') {
+        if (matchedUser.role === 'pai' || matchedUser.role === 'encarregado') {
           router.push('/pai/inicio');
         } else if (matchedUser.role === 'professor') {
           router.push('/professor/turma');
-        } else if (matchedUser.role === 'instituicao') {
+        } else if (matchedUser.role === 'instituicao' || matchedUser.role === 'admin') {
           router.push('/admin/dashboard');
         } else {
           router.push('/pai/inicio');

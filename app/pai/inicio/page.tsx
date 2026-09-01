@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Bell,
+  GraduationCap,
+  Award,
 } from 'lucide-react';
 
 export default function PaiInicioPage() {
@@ -26,6 +28,7 @@ export default function PaiInicioPage() {
     setActiveMedicalGuide,
     setSelectedReceiptLog,
     clinics,
+    miniPautas,
   } = useSystem();
 
   const studentLogs = logs.filter((l) => l.studentId === selectedStudent.id);
@@ -33,6 +36,11 @@ export default function PaiInicioPage() {
   const latestLog = studentLogs[0];
 
   const recentUnreadNotif = notifications.find((n) => !n.isRead);
+
+  // Notas aprovadas
+  const pautasAprovadas = miniPautas.filter(
+    (p) => p.status === 'aprovada' && (p.turma_id === selectedStudent.classId || p.turma_id === 'turma_10a' || selectedStudent.classId === '1a')
+  );
 
   const handleOpenMedicalGuide = () => {
     setActiveMedicalGuide({
@@ -58,10 +66,10 @@ export default function PaiInicioPage() {
           </div>
 
           <h1 className="font-['Poppins',sans-serif] font-bold text-2xl tracking-tight text-white mb-1">
-            Olá, {currentUser?.name?.split(' ')[0] || 'Fernanda'}! 👋
+            Olá, {currentUser?.name?.split(' ')[0] || currentUser?.nome?.split(' ')[0] || 'Fernanda'}! 👋
           </h1>
           <p className="text-blue-100 text-xs sm:text-sm font-normal">
-            Acompanhe a entrada e saída do seu filho em tempo real.
+            Acompanhe a frequência escolar, notas e proteção médica em tempo real.
           </p>
         </div>
       </div>
@@ -157,7 +165,39 @@ export default function PaiInicioPage() {
         )}
       </div>
 
-      {/* 3. Unread notification highlight banner (if any) */}
+      {/* 3. Academic Mini Pautas Quick Card */}
+      <Link
+        href="/pai/pautas"
+        className="bg-white hover:bg-slate-50/80 rounded-3xl p-5 shadow-sm border border-slate-200/80 flex items-center justify-between transition-all group"
+      >
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-700 shrink-0">
+            <GraduationCap className="w-6 h-6" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-['Poppins',sans-serif] font-bold text-sm text-slate-900 group-hover:text-[#143A7B]">
+                Boletim & Mini Pautas Trimestrais
+              </h3>
+              <span className="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+                Oficial
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {pautasAprovadas.length > 0
+                ? `${pautasAprovadas.length} disciplina(s) homologada(s) pela Direção Pedagógica.`
+                : 'Acompanhe as notas de avaliação contínua e trimestral.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1 text-xs font-semibold text-[#143A7B]">
+          <span>Ver Notas</span>
+          <ChevronRight className="w-4 h-4" />
+        </div>
+      </Link>
+
+      {/* 4. Unread notification highlight banner (if any) */}
       {recentUnreadNotif && (
         <Link
           href="/pai/notificacoes"
@@ -176,7 +216,7 @@ export default function PaiInicioPage() {
         </Link>
       )}
 
-      {/* 4. Activities of Today Section */}
+      {/* 5. Activities of Today Section */}
       <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/80">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -241,7 +281,7 @@ export default function PaiInicioPage() {
         </div>
       </div>
 
-      {/* 5. School Insurance & Emergency Hospital Network Block */}
+      {/* 6. School Insurance & Emergency Hospital Network Block */}
       <div className="bg-gradient-to-br from-emerald-900 via-[#0B3A2C] to-[#0D1B3D] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-3">
