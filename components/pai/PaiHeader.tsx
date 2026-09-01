@@ -81,6 +81,7 @@ export const PaiHeader: React.FC = () => {
           <Link
             href="/pai/notificacoes"
             className="relative p-1.5 sm:p-2 rounded-full bg-white/5 hover:bg-white/15 text-white transition-colors"
+            hidden
           >
             <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {unreadCount > 0 && (
