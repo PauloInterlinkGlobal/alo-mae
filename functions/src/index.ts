@@ -9,4 +9,7 @@ if (!admin.apps.length) {
 export { linkParentToStudent, provisionTerminalDevice, provisionTeacherClass } from './auth';
 
 // Exportar Triggers Reativos do Firestore
-export { onAccessLogCreated, recalculateClassStats } from './triggers';
+export { onAccessLogCreated, recalculateClassStats, onGradeApproved } from './triggers';
+
+// Exportar Função de Seeding Administrativo
+export { seedDatabase } from './seed';

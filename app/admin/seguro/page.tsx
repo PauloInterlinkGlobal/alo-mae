@@ -26,7 +26,7 @@ export default function AdminSeguroPage() {
     const q = searchQuery.toLowerCase();
     return (
       c.name.toLowerCase().includes(q) ||
-      c.district.toLowerCase().includes(q) ||
+      (c.district ? c.district.toLowerCase().includes(q) : false) ||
       c.specialty.toLowerCase().includes(q) ||
       c.services.some((s) => s.toLowerCase().includes(q))
     );

@@ -2,142 +2,225 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Perfil de usuário no Firestore vinculado ao Firebase Auth UID.",
+      "description": "Dados de autenticação, perfil e permissões dos usuários do sistema.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
-        "nome": { "type": "string" },
+        "name": { "type": "string" },
         "email": { "type": "string" },
-        "telefone": { "type": "string" },
-        "role": { "type": "string", "enum": ["instituicao", "professor", "encarregado"] },
-        "criado_em": { "type": "string" },
+        "phone": { "type": "string" },
+        "role": { "type": "string", "enum": ["pai", "professor", "instituicao", "encarregado", "admin"] },
         "avatarUrl": { "type": "string" },
-        "instituicao_id": { "type": "string" },
-        "escola_nome": { "type": "string" }
+        "schoolId": { "type": "string" },
+        "title": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentIds": { "type": "array" },
+        "classIds": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["uid", "nome", "email", "telefone", "role"]
+      "required": ["uid", "name", "email", "phone", "role", "schoolId"]
     },
-    "Aluno": {
-      "title": "Aluno",
-      "description": "Registo cadastral, escolar e guia médica de emergência do aluno.",
+    "Student": {
+      "title": "Student",
+      "description": "Dados cadastrais e identificação biométrica dos alunos.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "nome_completo": { "type": "string" },
-        "turma_id": { "type": "string" },
-        "encarregado_id": { "type": "string" },
-        "foto_biometrica_url": { "type": "string" },
-        "guia_medica": {
-          "type": "object",
-          "properties": {
-            "tipagem_sanguinea": { "type": "string" },
-            "alergias": { "type": "array" },
-            "tem_seguro": { "type": "boolean" },
-            "tipo_seguro": { "type": "string" },
-            "seguradora": { "type": "string" },
-            "cobertura_detalhes": { "type": "string" },
-            "numero_apolice": { "type": "string" },
-            "contacto_emergencia": { "type": "string" }
-          },
-          "required": ["tipagem_sanguinea", "tem_seguro", "seguradora", "numero_apolice", "contacto_emergencia"]
-        },
         "matricula": { "type": "string" },
-        "biometric_code": { "type": "string" },
-        "status_presenca": { "type": "string", "enum": ["present", "absent", "late"] }
+        "name": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "parentName": { "type": "string" },
+        "parentPhone": { "type": "string" },
+        "parentEmail": { "type": "string" },
+        "photoUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["present", "absent", "late"] },
+        "lastEntryTime": { "type": "string" },
+        "lastExitTime": { "type": "string" },
+        "biometricCode": { "type": "string" },
+        "insurancePolicyId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["id", "nome_completo", "turma_id", "encarregado_id", "foto_biometrica_url", "guia_medica"]
+      "required": ["id", "matricula", "name", "classId", "className", "schoolId", "parentName", "parentPhone", "parentEmail", "status", "biometricCode", "insurancePolicyId"]
     },
-    "Turma": {
-      "title": "Turma",
-      "description": "Turma escolar cadastrada pela instituição.",
+    "ClassStat": {
+      "title": "ClassStat",
+      "description": "Estatísticas agregadas de assiduidade e notas por turma.",
+      "type": "object",
+      "properties": {
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "room": { "type": "string" },
+        "totalStudents": { "type": "number" },
+        "presentsToday": { "type": "number" },
+        "absentsToday": { "type": "number" },
+        "latesToday": { "type": "number" },
+        "monthlyPresents": { "type": "number" },
+        "monthlyAbsences": { "type": "number" },
+        "monthlyLates": { "type": "number" },
+        "frequencyRate": { "type": "number" },
+        "schoolId": { "type": "string" },
+        "averageGrade": { "type": "number" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["classId", "className", "teacherName", "room", "totalStudents", "schoolId"]
+    },
+    "AccessLog": {
+      "title": "AccessLog",
+      "description": "Registros de entrada e saída biométrica e presencial dos alunos.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "nome": { "type": "string" },
-        "ano_lectivo": { "type": "number" },
-        "instituicao_id": { "type": "string" },
-        "sala": { "type": "string" }
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentPhoto": { "type": "string" },
+        "className": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "type": { "type": "string", "enum": ["entry", "exit"] },
+        "timestamp": { "type": "string" },
+        "date": { "type": "string" },
+        "location": { "type": "string" },
+        "method": { "type": "string", "enum": ["facial", "fingerprint", "manual", "digital"] },
+        "receiptCode": { "type": "string" },
+        "notified": { "type": "boolean" },
+        "notifiedRecipient": { "type": "string" },
+        "statusNote": { "type": "string" },
+        "createdAt": { "type": "string" }
       },
-      "required": ["id", "nome", "ano_lectivo", "instituicao_id"]
+      "required": ["id", "studentId", "studentName", "className", "schoolId", "type", "timestamp", "date", "receiptCode"]
     },
-    "TurmaProfessor": {
-      "title": "TurmaProfessor",
-      "description": "Associação de docente e disciplina para uma turma.",
+    "SchoolNotification": {
+      "title": "SchoolNotification",
+      "description": "Notificações push, avisos, convocações e comunicados escolares.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "turma_id": { "type": "string" },
-        "professor_id": { "type": "string" },
-        "disciplina": { "type": "string" }
+        "type": { "type": "string", "enum": ["reunion", "warning", "broadcast", "praise", "access_entry", "access_exit", "medical", "grade_approved"] },
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "className": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "targetUserUid": { "type": "string" },
+        "reunionDate": { "type": "string" },
+        "reunionTime": { "type": "string" },
+        "receiptCode": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["id", "turma_id", "professor_id", "disciplina"]
+      "required": ["id", "type", "title", "message", "schoolId", "senderName", "senderRole", "date", "time", "isRead"]
     },
-    "MiniPauta": {
-      "title": "MiniPauta",
-      "description": "Mini pauta trimestral com notas por disciplina e fluxo de aprovação.",
+    "MedicalClinic": {
+      "title": "MedicalClinic",
+      "description": "Rede de clínicas e hospitais credenciados do seguro escolar.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "turma_id": { "type": "string" },
-        "turma_nome": { "type": "string" },
-        "disciplina": { "type": "string" },
-        "professor_id": { "type": "string" },
-        "professor_nome": { "type": "string" },
-        "trimestre": { "type": "number", "enum": [1, 2, 3] },
-        "ano_lectivo": { "type": "number" },
-        "status": { "type": "string", "enum": ["rascunho", "submetida", "aprovada", "rejeitada"] },
-        "data_envio": { "type": "string" },
-        "data_aprovacao": { "type": "string" },
-        "motivo_rejeicao": { "type": "string" },
-        "notas": { "type": "array" }
+        "name": { "type": "string" },
+        "specialty": { "type": "string" },
+        "address": { "type": "string" },
+        "district": { "type": "string" },
+        "distanceKm": { "type": "string" },
+        "timeMin": { "type": "string" },
+        "emergencyPhone": { "type": "string" },
+        "services": { "type": "array" },
+        "imageUrl": { "type": "string" },
+        "available24h": { "type": "boolean" },
+        "schoolId": { "type": "string" }
       },
-      "required": ["id", "turma_id", "disciplina", "professor_id", "trimestre", "ano_lectivo", "status", "notas"]
+      "required": ["id", "name", "specialty", "address", "emergencyPhone", "available24h", "schoolId"]
     },
-    "PresencaBiometrica": {
-      "title": "PresencaBiometrica",
-      "description": "Registo em tempo real de entrada ou saída biométrica do aluno.",
+    "Grade": {
+      "title": "Grade",
+      "description": "Mini pautas e boletins de notas lançadas pelos professores e auditadas pela instituição.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "aluno_id": { "type": "string" },
-        "aluno_nome": { "type": "string" },
-        "aluno_foto": { "type": "string" },
-        "turma_id": { "type": "string" },
-        "turma_nome": { "type": "string" },
-        "data_hora": { "type": "string" },
-        "tipo": { "type": "string", "enum": ["entrada", "saida"] },
-        "status_reconhecimento": { "type": "string", "enum": ["sucesso", "falha"] },
-        "metodo": { "type": "string" },
-        "localizacao": { "type": "string" },
-        "codigo_recibo": { "type": "string" }
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "subject": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "grade": { "type": "number" },
+        "feedback": { "type": "string" },
+        "status": { "type": "string", "enum": ["draft", "pending_approval", "approved", "rejected"] },
+        "schoolId": { "type": "string" },
+        "approvedBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
-      "required": ["id", "aluno_id", "turma_id", "data_hora", "tipo", "status_reconhecimento"]
+      "required": ["id", "studentId", "studentName", "classId", "className", "subject", "teacherId", "teacherName", "grade", "status", "schoolId"]
+    },
+    "StudentMedical": {
+      "title": "StudentMedical",
+      "description": "Guia médica individual, apólice de seguro e contatos de emergência do aluno.",
+      "type": "object",
+      "properties": {
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "classId": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "insurancePolicyId": { "type": "string" },
+        "insuranceProvider": { "type": "string" },
+        "policyType": { "type": "string", "enum": ["basic", "comprehensive", "hospital", "other"] },
+        "coverage": { "type": "array" },
+        "validityStart": { "type": "string" },
+        "validityEnd": { "type": "string" },
+        "emergencyPhone": { "type": "string" },
+        "emergencyContactName": { "type": "string" },
+        "allergies": { "type": "array" },
+        "chronicConditions": { "type": "array" },
+        "notes": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["studentId", "studentName", "classId", "schoolId", "insurancePolicyId", "insuranceProvider", "policyType", "coverage", "validityStart", "validityEnd", "emergencyPhone", "emergencyContactName"]
     }
   },
   "firestore": {
     "/users/{uid}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "Perfis de utilizadores autenticados (instituicao, professor, encarregado)."
+      "description": "Perfis de usuários do sistema escolar."
     },
-    "/alunos/{alunoId}": {
-      "schema": { "$ref": "#/entities/Aluno" },
-      "description": "Cadastro escolar e Guia Médica dos alunos."
+    "/students/{studentId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Cadastro e estado dos alunos."
     },
-    "/turmas/{turmaId}": {
-      "schema": { "$ref": "#/entities/Turma" },
-      "description": "Turmas da escola."
+    "/classStats/{classId}": {
+      "schema": { "$ref": "#/entities/ClassStat" },
+      "description": "Estatísticas agregadas de presença e frequência de turmas."
     },
-    "/turmas_professores/{id}": {
-      "schema": { "$ref": "#/entities/TurmaProfessor" },
-      "description": "Atribuição de docentes e disciplinas por turma."
+    "/accessLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AccessLog" },
+      "description": "Registos de acessos biométricos de entrada e saída."
     },
-    "/mini_pautas/{pautaId}": {
-      "schema": { "$ref": "#/entities/MiniPauta" },
-      "description": "Mini pautas com notas trimestrais e controle de aprovação."
+    "/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/SchoolNotification" },
+      "description": "Notificações e comunicados escolares em tempo real."
     },
-    "/presencas_biometricas/{id}": {
-      "schema": { "$ref": "#/entities/PresencaBiometrica" },
-      "description": "Registos de acessos biométricos."
+    "/medicalClinics/{clinicId}": {
+      "schema": { "$ref": "#/entities/MedicalClinic" },
+      "description": "Clínicas médicas e hospitais credenciados."
+    },
+    "/grades/{gradeId}": {
+      "schema": { "$ref": "#/entities/Grade" },
+      "description": "Mini pautas e notas de avaliação por disciplina."
+    },
+    "/studentMedical/{studentId}": {
+      "schema": { "$ref": "#/entities/StudentMedical" },
+      "description": "Guias médicas, seguro escolar e histórico de saúde dos alunos."
     }
   }
 }

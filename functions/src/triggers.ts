@@ -1,13 +1,13 @@
 import * as admin from 'firebase-admin';
-import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { AccessLogDoc, StudentDoc } from './types';
+import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
+import { AccessLogDoc, StudentDoc, GradeDoc } from './types';
 
 const db = admin.firestore();
 const messaging = admin.messaging();
 
 /**
  * Trigger: onAccessLogCreated
- * FIX #3: Propaga classId para logs e notificações de forma estável
+ * Atualiza status do aluno no Firestore e dispara notificação push e log para o encarregado
  */
 export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async (event) => {
   const snap = event.data;
@@ -33,7 +33,8 @@ export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async 
   const newStatus = type === 'entry' ? 'present' : studentData.status;
   const updateData: Partial<StudentDoc> = {
     status: newStatus,
-    ...(type === 'entry' ? { lastEntryTime: timestamp } : { lastExitTime: timestamp })
+    ...(type === 'entry' ? { lastEntryTime: timestamp } : { lastExitTime: timestamp }),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
   };
 
   await studentRef.set(updateData, { merge: true });
@@ -51,7 +52,7 @@ export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async 
     message: `O aluno ${studentName || studentData.name} registou ${type === 'entry' ? 'entrada' : 'saída'} às ${new Date(timestamp).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })} no ponto "${location}". Comprovativo emitido com código ${receiptCode}.`,
     studentId: studentId,
     studentName: studentName || studentData.name,
-    classId: effectiveClassId, // FIX #3
+    classId: effectiveClassId,
     className: studentData.className,
     schoolId: schoolId || studentData.schoolId,
     senderName: 'Terminal Biométrico Integrado',
@@ -60,7 +61,7 @@ export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async 
     time: new Date(timestamp).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
     isRead: false,
     receiptCode: receiptCode,
-    targetScope: 'student'
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
   };
 
   await db.collection('notifications').doc(notificationId).set(notificationData);
@@ -100,6 +101,7 @@ export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async 
 
 /**
  * Trigger: recalculateClassStats
+ * Recalcula métricas de assiduidade sempre que o status de um estudante muda
  */
 export const recalculateClassStats = onDocumentWritten('students/{studentId}', async (event) => {
   const afterData = event.data?.after.data() as StudentDoc | undefined;
@@ -157,4 +159,98 @@ export const recalculateClassStats = onDocumentWritten('students/{studentId}', a
     frequencyRate,
     updatedAt: new Date().toISOString()
   }, { merge: true });
+});
+
+/**
+ * Trigger: onGradeApproved
+ * Executado quando o status de uma nota muda para 'approved'
+ * Notifica o encarregado de educação e recalcula a média da turma
+ */
+export const onGradeApproved = onDocumentUpdated('grades/{gradeId}', async (event) => {
+  const beforeData = event.data?.before.data() as GradeDoc | undefined;
+  const afterData = event.data?.after.data() as GradeDoc | undefined;
+
+  if (!beforeData || !afterData) return;
+
+  // Apenas reagir se o status foi alterado para 'approved'
+  if (beforeData.status !== 'approved' && afterData.status === 'approved') {
+    const { studentId, studentName, subject, grade, classId, schoolId, teacherName } = afterData;
+
+    // 1. Criar notificação para o encarregado
+    const notifId = `notif_grade_${event.params.gradeId}`;
+    const notificationData = {
+      id: notifId,
+      type: 'grade_approved',
+      title: `Boletim / Nota Homologada: ${subject}`,
+      subject: `Aprovação de Pauta Pedagógica — ${subject}`,
+      message: `A nota de ${studentName} na disciplina de ${subject} (${grade}/20 valores) foi homologada pela Direção Pedagógica. Lançada por: Prof. ${teacherName}.`,
+      studentId,
+      studentName,
+      classId,
+      schoolId,
+      senderName: 'Direção Pedagógica',
+      senderRole: 'instituicao',
+      date: new Date().toISOString().split('T')[0],
+      time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
+      isRead: false,
+      createdAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await db.collection('notifications').doc(notifId).set(notificationData);
+
+    // 2. Enviar Push Notification aos Encarregados
+    try {
+      const parentQuery = await db.collection('users')
+        .where('role', '==', 'pai')
+        .where('childrenIds', 'array-contains', studentId)
+        .get();
+
+      for (const parentDoc of parentQuery.docs) {
+        const parentData = parentDoc.data();
+        const fcmTokens: string[] = parentData.fcmTokens || (parentData.fcmToken ? [parentData.fcmToken] : []);
+
+        if (fcmTokens.length > 0) {
+          await messaging.sendEachForMulticast({
+            tokens: fcmTokens,
+            notification: {
+              title: `Alô Mãe: Nota Homologada (${subject})`,
+              body: `${studentName} obteve ${grade}/20 valores em ${subject}.`
+            },
+            data: {
+              notificationId: notifId,
+              studentId,
+              classId,
+              type: 'grade_approved'
+            }
+          });
+        }
+      }
+    } catch (pushErr) {
+      console.error('Erro ao enviar FCM de nota aprovada:', pushErr);
+    }
+
+    // 3. Recalcular média geral da turma (averageGrade) em classStats
+    try {
+      const classGradesQuery = await db.collection('grades')
+        .where('classId', '==', classId)
+        .where('status', '==', 'approved')
+        .get();
+
+      if (!classGradesQuery.empty) {
+        let totalScore = 0;
+        classGradesQuery.docs.forEach(doc => {
+          const g = doc.data() as GradeDoc;
+          totalScore += Number(g.grade) || 0;
+        });
+
+        const averageGrade = Number((totalScore / classGradesQuery.size).toFixed(1));
+        await db.collection('classStats').doc(classId).set({
+          averageGrade,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }
+    } catch (statErr) {
+      console.error('Erro ao recalcular média da turma:', statErr);
+    }
+  }
 });

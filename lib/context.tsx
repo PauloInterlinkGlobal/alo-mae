@@ -11,6 +11,8 @@ import {
   NotificationType,
   UserAccount,
   UserRole,
+  Grade,
+  StudentMedical,
   Aluno,
   Turma,
   TurmaProfessor,
@@ -30,10 +32,17 @@ import {
 import { audioManager } from './sound';
 import {
   seedInitialFirestoreData,
-  listenAlunos,
-  listenPresencasRecentes,
+  listenStudents,
+  listenAccessLogs,
+  listenNotifications,
+  listenClassStats,
+  listenMedicalClinics,
   listenMiniPautas,
-  registarPresencaBiometrica as firestoreRegisterPresenca,
+  listenGrades,
+  createAccessLog as firestoreCreateAccessLog,
+  createNotification as firestoreCreateNotification,
+  markNotificationAsRead as firestoreMarkNotificationAsRead,
+  updateStudent as firestoreUpdateStudent,
   updateGuiaMedica as firestoreUpdateGuiaMedica,
   criarMiniPauta as firestoreCriarMiniPauta,
   salvarNotasMiniPauta as firestoreSalvarNotas,
@@ -41,7 +50,6 @@ import {
   aprovarMiniPauta as firestoreAprovarPauta,
   rejeitarMiniPauta as firestoreRejeitarPauta,
   getUserProfile,
-  updateUserProfile as firestoreUpdateProfile,
   getTurmas,
   getTurmasProfessores,
 } from './firebase-services';
@@ -54,19 +62,20 @@ interface SystemContextType {
   isTerminalAuthorized: boolean;
   setTerminalAuthorized: (val: boolean) => void;
 
-  // Real-time Firestore Entities
+  // Real-time Firestore Collections
+  students: Student[];
+  logs: AccessLog[];
+  notifications: SchoolNotification[];
+  clinics: MedicalClinic[];
+  classStats: ClassAttendanceStat[];
+  grades: Grade[];
   alunos: Aluno[];
   turmas: Turma[];
   turmasProfessores: TurmaProfessor[];
   miniPautas: MiniPauta[];
   presencasBiometricas: PresencaBiometrica[];
 
-  // Legacy & View Compatibility
-  students: Student[];
-  logs: AccessLog[];
-  notifications: SchoolNotification[];
-  clinics: MedicalClinic[];
-  classStats: ClassAttendanceStat[];
+  // Selected State
   selectedStudent: Student;
   setSelectedStudent: (student: Student) => void;
   activeMedicalGuide: { student: Student; clinic: MedicalClinic } | null;
@@ -76,7 +85,7 @@ interface SystemContextType {
   isSimulatingWebcam: boolean;
   setIsSimulatingWebcam: (val: boolean) => void;
 
-  // Actions directly wired to Firestore
+  // CRUD Actions
   registerBiometricAccess: (
     studentId: string,
     type: 'entry' | 'exit',
@@ -91,19 +100,19 @@ interface SystemContextType {
     message: string,
     reunionDate?: string,
     reunionTime?: string
-  ) => void;
+  ) => Promise<void>;
 
-  updateStudentStatus: (studentId: string, status: AttendanceStatus) => void;
+  updateStudentStatus: (studentId: string, status: AttendanceStatus) => Promise<void>;
   updateGuiaMedica: (alunoId: string, guia: GuiaMedica) => Promise<void>;
 
-  // Mini Pautas Operations (Professor & Direção)
+  // Mini Pautas & Grades
   criarMiniPauta: (pauta: Omit<MiniPauta, 'id' | 'status'>) => Promise<string>;
   salvarNotas: (pautaId: string, notas: NotaAluno[]) => Promise<void>;
   submeterPauta: (pautaId: string) => Promise<void>;
   aprovarPauta: (pautaId: string) => Promise<void>;
   rejeitarPauta: (pautaId: string, motivo?: string) => Promise<void>;
 
-  markNotificationAsRead: (id: string) => void;
+  markNotificationAsRead: (id: string) => Promise<void>;
   unreadCount: number;
   toastMessage: { title: string; desc: string; type: 'success' | 'info' | 'alert' } | null;
   dismissToast: () => void;
@@ -129,18 +138,21 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isFirestoreSyncing, setIsFirestoreSyncing] = useState<boolean>(true);
 
   // Firestore Real-time Collections
+  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
+  const [logs, setLogs] = useState<AccessLog[]>(INITIAL_LOGS);
+  const [notifications, setNotifications] = useState<SchoolNotification[]>(INITIAL_NOTIFICATIONS);
+  const [clinics, setClinics] = useState<MedicalClinic[]>(MEDICAL_CLINICS);
+  const [classStats, setClassStats] = useState<ClassAttendanceStat[]>(CLASS_STATS);
+  const [grades, setGrades] = useState<Grade[]>([]);
+
+  // Legacy & Portuguese helpers
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [turmas, setTurmas] = useState<Turma[]>([]);
   const [turmasProfessores, setTurmasProfessores] = useState<TurmaProfessor[]>([]);
   const [miniPautas, setMiniPautas] = useState<MiniPauta[]>([]);
   const [presencasBiometricas, setPresencasBiometricas] = useState<PresencaBiometrica[]>([]);
 
-  // UI state
-  const [students, setStudents] = useState<Student[]>(INITIAL_STUDENTS);
-  const [logs, setLogs] = useState<AccessLog[]>(INITIAL_LOGS);
-  const [notifications, setNotifications] = useState<SchoolNotification[]>(INITIAL_NOTIFICATIONS);
-  const [clinics] = useState<MedicalClinic[]>(MEDICAL_CLINICS);
-  const [classStats, setClassStats] = useState<ClassAttendanceStat[]>(CLASS_STATS);
+  // Selected state
   const [selectedStudent, setSelectedStudent] = useState<Student>(INITIAL_STUDENTS[0]);
   const [activeMedicalGuide, setActiveMedicalGuide] = useState<{ student: Student; clinic: MedicalClinic } | null>(null);
   const [selectedReceiptLog, setSelectedReceiptLog] = useState<AccessLog | null>(null);
@@ -150,39 +162,22 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const dismissToast = () => setToastMessage(null);
 
-  // Convert Firestore Aluno to UI Student format
-  const mapAlunoToStudent = useCallback((a: Aluno): Student => {
-    return {
-      id: a.id,
-      matricula: a.matricula || `MAT-${a.id.slice(-5)}`,
-      name: a.nome_completo,
-      classId: a.turma_id === 'turma_10a' ? '1a' : a.turma_id,
-      className: a.turma_id === 'turma_10a' ? '10ª Classe A' : a.turma_id === 'turma_10b' ? '10ª Classe B' : '11ª Classe A',
-      schoolName: 'Colégio Horizonte de Luanda',
-      parentName: a.encarregado_id === 'user_pai_fernanda' ? 'Fernanda Silva' : 'Encarregado(a)',
-      parentPhone: a.encarregado_id === 'user_pai_fernanda' ? '+244 923 884 912' : '+244 924 551 092',
-      parentEmail: a.encarregado_id === 'user_pai_fernanda' ? 'fernanda.silva@email.com' : 'encarregado@email.com',
-      photoUrl: a.foto_biometrica_url || 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400',
-      status: a.status_presenca || 'present',
-      lastEntryTime: a.ultimo_acesso ? new Date(a.ultimo_acesso).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }) : '07:32',
-      biometricCode: a.biometric_code || `BIO-${a.id.toUpperCase()}`,
-      insurancePolicyId: a.guia_medica?.numero_apolice || 'SEG-ALO-2026-8821',
-      guiaMedica: a.guia_medica,
-    };
-  }, []);
-
-  // Initialize Firestore and Real-time Listeners
+  // Initialize Firestore and Real-time Listeners across all 8 collections
   useEffect(() => {
-    let unsubscribeAlunos: (() => void) | undefined;
-    let unsubscribePresencas: (() => void) | undefined;
-    let unsubscribePautas: (() => void) | undefined;
+    let unsubStudents: (() => void) | undefined;
+    let unsubLogs: (() => void) | undefined;
+    let unsubNotifs: (() => void) | undefined;
+    let unsubStats: (() => void) | undefined;
+    let unsubClinics: (() => void) | undefined;
+    let unsubPautas: (() => void) | undefined;
+    let unsubGrades: (() => void) | undefined;
 
     async function initFirestore() {
       setIsFirestoreSyncing(true);
       try {
         await seedInitialFirestoreData();
 
-        // Fetch Turmas & Professores
+        // 1. Fetch Turmas and Professores
         const [turmasList, tpList] = await Promise.all([
           getTurmas(),
           getTurmasProfessores(),
@@ -190,47 +185,82 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTurmas(turmasList);
         setTurmasProfessores(tpList);
 
-        // Listen to Alunos
-        unsubscribeAlunos = listenAlunos((firestoreAlunos) => {
-          if (firestoreAlunos.length > 0) {
-            setAlunos(firestoreAlunos);
-            const mappedStudents = firestoreAlunos.map(mapAlunoToStudent);
-            setStudents(mappedStudents);
-            setSelectedStudent((prev) => mappedStudents.find((s) => s.id === prev.id) || mappedStudents[0]);
+        // 2. Listen to Students
+        unsubStudents = listenStudents((firestoreStudents) => {
+          if (firestoreStudents.length > 0) {
+            setStudents(firestoreStudents);
+            const alunosConverted: Aluno[] = firestoreStudents.map((s) => ({
+              ...s,
+              nome_completo: s.name,
+              turma_id: s.classId === '1a' ? 'turma_10a' : s.classId,
+              encarregado_id: 'user_pai_fernanda',
+              foto_biometrica_url: s.photoUrl || '',
+              guia_medica: s.guiaMedica || {
+                tipagem_sanguinea: 'O+',
+                alergias: ['Amendoim', 'Penicilina'],
+                tem_seguro: true,
+                tipo_seguro: 'Seguro Escolar Completo Plus',
+                seguradora: 'ENSA Seguros Angola',
+                cobertura_detalhes: 'Internamento, Pronto Socorro Pediátrico 24h',
+                numero_apolice: s.insurancePolicyId || 'SEG-ALO-2026-8821',
+                contacto_emergencia: s.parentPhone || '+244 923 884 912',
+              },
+            }));
+            setAlunos(alunosConverted);
+            setSelectedStudent((prev) => firestoreStudents.find((s) => s.id === prev?.id) || firestoreStudents[0]);
           }
         });
 
-        // Listen to Presenças Biométricas
-        unsubscribePresencas = listenPresencasRecentes((firestorePresencas) => {
-          if (firestorePresencas.length > 0) {
-            setPresencasBiometricas(firestorePresencas);
-            const mappedLogs: AccessLog[] = firestorePresencas.map((p) => {
-              const d = new Date(p.data_hora);
-              return {
-                id: p.id,
-                studentId: p.aluno_id,
-                studentName: p.aluno_nome || 'Aluno',
-                studentPhoto: p.aluno_foto || 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400',
-                className: p.turma_nome || '10ª Classe A',
-                schoolName: 'Colégio Horizonte de Luanda',
-                type: p.tipo === 'entrada' ? 'entry' : 'exit',
-                timestamp: d.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-                date: d.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' }),
-                location: p.localizacao || 'Portaria Principal',
-                method: (p.metodo as 'facial' | 'fingerprint' | 'manual') || 'facial',
-                receiptCode: p.codigo_recibo || `REC-${p.id}`,
-                notified: true,
-                notifiedRecipient: 'Encarregado Notificado',
-                statusNote: 'Registado via Totem Biométrico',
-              };
-            });
-            setLogs(mappedLogs);
+        // 3. Listen to AccessLogs
+        unsubLogs = listenAccessLogs((firestoreLogs) => {
+          if (firestoreLogs.length > 0) {
+            setLogs(firestoreLogs);
+            const mappedPresencas: PresencaBiometrica[] = firestoreLogs.map((l) => ({
+              ...l,
+              aluno_id: l.studentId,
+              aluno_nome: l.studentName,
+              aluno_foto: l.studentPhoto,
+              turma_id: l.classId || 'turma_10a',
+              turma_nome: l.className,
+              data_hora: new Date().toISOString(),
+              tipo: l.type === 'entry' ? 'entrada' : 'saida',
+              status_reconhecimento: 'sucesso',
+              metodo: l.method,
+              localizacao: l.location,
+              codigo_recibo: l.receiptCode,
+            }));
+            setPresencasBiometricas(mappedPresencas);
           }
         });
 
-        // Listen to Mini Pautas
-        unsubscribePautas = listenMiniPautas((firestorePautas) => {
+        // 4. Listen to Notifications
+        unsubNotifs = listenNotifications((firestoreNotifs) => {
+          if (firestoreNotifs.length > 0) {
+            setNotifications(firestoreNotifs);
+          }
+        });
+
+        // 5. Listen to ClassStats
+        unsubStats = listenClassStats((firestoreStats) => {
+          if (firestoreStats.length > 0) {
+            setClassStats(firestoreStats);
+          }
+        });
+
+        // 6. Listen to MedicalClinics
+        unsubClinics = listenMedicalClinics((firestoreClinics) => {
+          if (firestoreClinics.length > 0) {
+            setClinics(firestoreClinics);
+          }
+        });
+
+        // 7. Listen to MiniPautas & Grades
+        unsubPautas = listenMiniPautas((firestorePautas) => {
           setMiniPautas(firestorePautas);
+        });
+
+        unsubGrades = listenGrades((firestoreGrades) => {
+          setGrades(firestoreGrades);
         });
       } catch (err) {
         console.warn('Erro na sincronização Firestore:', err);
@@ -242,11 +272,15 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     initFirestore();
 
     return () => {
-      if (unsubscribeAlunos) unsubscribeAlunos();
-      if (unsubscribePresencas) unsubscribePresencas();
-      if (unsubscribePautas) unsubscribePautas();
+      if (unsubStudents) unsubStudents();
+      if (unsubLogs) unsubLogs();
+      if (unsubNotifs) unsubNotifs();
+      if (unsubStats) unsubStats();
+      if (unsubClinics) unsubClinics();
+      if (unsubPautas) unsubPautas();
+      if (unsubGrades) unsubGrades();
     };
-  }, [mapAlunoToStudent]);
+  }, []);
 
   // Sync current user to local storage
   useEffect(() => {
@@ -275,7 +309,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // 1. Direct role key check
     let foundUser: UserAccount | undefined = MOCK_USERS[trimmedInput as UserRole];
 
-    // 2. Search in mock users or Firestore profiles
+    // 2. Search in user profiles
     if (!foundUser) {
       foundUser = Object.values(MOCK_USERS).find((user) => {
         const uEmail = user.email.trim().toLowerCase();
@@ -297,9 +331,9 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         foundUser = {
           ...p,
           id: p.uid,
-          name: p.nome,
-          phone: p.telefone,
-          schoolName: p.escola_nome || 'Colégio Horizonte de Luanda',
+          name: p.name || p.nome || '',
+          phone: p.phone || p.telefone || '',
+          schoolName: p.schoolId === 'school_horizonte_luanda' ? 'Colégio Horizonte de Luanda' : 'Colégio Horizonte de Luanda',
         };
       }
     }
@@ -344,32 +378,14 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const dateStr = now.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
     const receiptCode = `CF-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${timeStr.replace(/:/g, '')}-${student.id.toUpperCase()}`;
 
-    // 1. Write directly to Firestore `presencas_biometricas`
-    try {
-      await firestoreRegisterPresenca({
-        aluno_id: student.id,
-        aluno_nome: student.name,
-        aluno_foto: student.photoUrl,
-        turma_id: student.classId === '1a' ? 'turma_10a' : student.classId,
-        turma_nome: student.className,
-        data_hora: now.toISOString(),
-        tipo: type === 'entry' ? 'entrada' : 'saida',
-        status_reconhecimento: 'sucesso',
-        metodo: method,
-        localizacao: location,
-        codigo_recibo: receiptCode,
-      });
-    } catch (err) {
-      console.warn('Erro ao persistir presença biométrica no Firestore:', err);
-    }
-
     const newLog: AccessLog = {
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${student.id}`,
       studentId: student.id,
       studentName: student.name,
-      studentPhoto: student.photoUrl,
+      studentPhoto: student.photoUrl || 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400',
       className: student.className,
-      schoolName: student.schoolName,
+      schoolId: student.schoolId || 'school_horizonte_luanda',
+      schoolName: student.schoolName || 'Colégio Horizonte de Luanda',
       type,
       timestamp: timeStr,
       date: dateStr,
@@ -378,51 +394,26 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       receiptCode,
       notified: true,
       notifiedRecipient: `${student.parentName} (${student.parentPhone})`,
-      statusNote: `${student.parentName.split(' ')[0]} Notificado via Push`,
+      statusNote: `${student.parentName.split(' ')[0]} Notificado via SMS / Push`,
     };
 
-    // Update in-memory fallback
-    setLogs((prev) => [newLog, ...prev]);
+    // 1. Write AccessLog to Firestore
+    try {
+      await firestoreCreateAccessLog(newLog);
+    } catch (err) {
+      console.warn('Erro ao salvar accessLog no Firestore:', err);
+    }
 
-    // Update student presence status
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === student.id) {
-          return {
-            ...s,
-            status: type === 'entry' ? 'present' : 'present',
-            lastEntryTime: type === 'entry' ? timeStr : s.lastEntryTime,
-            lastExitTime: type === 'exit' ? timeStr : s.lastExitTime,
-          };
-        }
-        return s;
-      })
-    );
-
-    // Update class stats
-    setClassStats((prev) =>
-      prev.map((cls) => {
-        if (cls.classId === student.classId) {
-          const currentPresents = type === 'entry' ? Math.min(cls.totalStudents, cls.presentsToday + 1) : cls.presentsToday;
-          return {
-            ...cls,
-            presentsToday: currentPresents,
-            absentsToday: Math.max(0, cls.totalStudents - currentPresents),
-          };
-        }
-        return cls;
-      })
-    );
-
-    // Push notification for parent
+    // 2. Push Notification to Firestore
     const newNotif: SchoolNotification = {
       id: `notif-${Date.now()}`,
       type: type === 'entry' ? 'access_entry' : 'access_exit',
       title: type === 'entry' ? 'Entrada confirmada!' : 'Saída registrada',
-      message: `${student.name} ${type === 'entry' ? 'entrou no' : 'saiu do'} ${student.schoolName} às ${timeStr.slice(0, 5)} via ${method === 'facial' ? 'Reconhecimento Facial' : method === 'fingerprint' ? 'Biometria Digital' : 'Validação Manual'}.`,
+      message: `${student.name} ${type === 'entry' ? 'entrou no' : 'saiu do'} ${student.schoolName || 'Colégio'} às ${timeStr.slice(0, 5)} via ${method === 'facial' ? 'Reconhecimento Facial' : method === 'fingerprint' ? 'Biometria Digital' : 'Validação Manual'}.`,
       studentId: student.id,
       studentName: student.name,
       className: student.className,
+      schoolId: student.schoolId || 'school_horizonte_luanda',
       senderName: 'Terminal Biométrico Portaria',
       senderRole: 'Sistema Alô mãe',
       date: 'Hoje',
@@ -431,22 +422,26 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       receiptCode,
     };
 
-    setNotifications((prev) => [newNotif, ...prev]);
+    try {
+      await firestoreCreateNotification(newNotif);
+    } catch (err) {
+      console.warn('Erro ao salvar notificação no Firestore:', err);
+    }
 
-    // Sounds
+    // Audio & UX Feedback
     audioManager.playSuccessChime();
     audioManager.speakConfirmation(student.name, type);
 
     setToastMessage({
       title: `${type === 'entry' ? 'Entrada' : 'Saída'} Confirmada — Alô mãe`,
-      desc: `${student.name} • ${timeStr} • Notificação sincronizada no Firestore`,
+      desc: `${student.name} • ${timeStr} • Sincronizado no Firestore`,
       type: 'success',
     });
 
     return newLog;
   };
 
-  const sendTeacherNotification = (
+  const sendTeacherNotification = async (
     type: NotificationType,
     target: 'all' | string,
     subject: string,
@@ -466,6 +461,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       access_entry: 'Entrada registrada',
       access_exit: 'Saída registrada',
       medical: 'Guia de Atendimento Médico',
+      grade_approved: 'Mini Pauta e Notas Publicadas',
     };
 
     const newNotif: SchoolNotification = {
@@ -477,6 +473,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       studentId: targetStudent ? targetStudent.id : undefined,
       studentName: targetStudent ? targetStudent.name : 'Todos os Alunos da Turma',
       className: '10ª Classe A',
+      schoolId: 'school_horizonte_luanda',
       senderName: currentUser?.name || 'Profª. Maria Fernandes',
       senderRole: 'Professora Titular',
       date: 'Hoje',
@@ -486,7 +483,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       reunionTime,
     };
 
-    setNotifications((prev) => [newNotif, ...prev]);
+    await firestoreCreateNotification(newNotif);
     audioManager.playNotificationPing();
 
     setToastMessage({
@@ -496,15 +493,8 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const updateStudentStatus = (studentId: string, status: AttendanceStatus) => {
-    setStudents((prev) =>
-      prev.map((s) => {
-        if (s.id === studentId) {
-          return { ...s, status };
-        }
-        return s;
-      })
-    );
+  const updateStudentStatus = async (studentId: string, status: AttendanceStatus) => {
+    await firestoreUpdateStudent(studentId, { status });
 
     if (status === 'absent') {
       const student = students.find((s) => s.id === studentId);
@@ -518,16 +508,17 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           studentId: student.id,
           studentName: student.name,
           className: student.className,
+          schoolId: student.schoolId || 'school_horizonte_luanda',
           senderName: currentUser?.name || 'Profª. Maria Fernandes',
           senderRole: 'Controlo de Presenças',
           date: 'Hoje',
           time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
           isRead: false,
         };
-        setNotifications((prev) => [notif, ...prev]);
+        await firestoreCreateNotification(notif);
         setToastMessage({
           title: 'Alerta de Falta Notificado!',
-          desc: `Encarregado de ${student.name} alertado em tempo real.`,
+          desc: `Encarregado de ${student.name} alertado em tempo real no Firestore.`,
           type: 'alert',
         });
       }
@@ -536,9 +527,6 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const updateGuiaMedica = async (alunoId: string, guia: GuiaMedica) => {
     await firestoreUpdateGuiaMedica(alunoId, guia);
-    setAlunos((prev) =>
-      prev.map((a) => (a.id === alunoId ? { ...a, guia_medica: guia } : a))
-    );
     setToastMessage({
       title: 'Guia Médica Atualizada!',
       desc: 'Dados de saúde e seguro persistidos no Firestore.',
@@ -592,10 +580,8 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  const markNotificationAsRead = (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, isRead: true } : n))
-    );
+  const markNotificationAsRead = async (id: string) => {
+    await firestoreMarkNotificationAsRead(id);
   };
 
   return (
@@ -607,16 +593,17 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         logout,
         isTerminalAuthorized,
         setTerminalAuthorized,
-        alunos,
-        turmas,
-        turmasProfessores,
-        miniPautas,
-        presencasBiometricas,
         students,
         logs,
         notifications,
         clinics,
         classStats,
+        grades,
+        alunos,
+        turmas,
+        turmasProfessores,
+        miniPautas,
+        presencasBiometricas,
         selectedStudent,
         setSelectedStudent,
         activeMedicalGuide,
