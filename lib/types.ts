@@ -226,9 +226,14 @@ export interface Aluno extends Student {
 export interface Turma {
   id: string;
   nome: string;
-  ano_lectivo: number;
+  ano_lectivo: number | string;
   instituicao_id: string;
   sala?: string;
+  periodo?: string;
+  total_alunos?: number;
+  disciplinas?: string[];
+  diretor_turma_id?: string;
+  diretor_turma_nome?: string;
 }
 
 export interface TurmaProfessor {
@@ -236,6 +241,11 @@ export interface TurmaProfessor {
   turma_id: string;
   professor_id: string;
   disciplina: string;
+  instituicao_id?: string;
+  turma_nome?: string;
+  professor_nome?: string;
+  ano_lectivo?: number | string;
+  carga_horaria_semanal?: number;
 }
 
 export interface NotaAluno {

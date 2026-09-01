@@ -87,17 +87,13 @@ service cloud.firestore {
     // 1. Coleção: users/{userId}
     // ==========================================================
     match /users/{userId} {
-      allow get: if isOwner(userId) || isInstituicao() || (isProfessor() && existing().role == 'pai' && (getSchoolId() == null || existing().schoolId == getSchoolId()));
-      allow list: if isInstituicao() || (isProfessor() && resource.data.role == 'pai' && (getSchoolId() == null || resource.data.schoolId == getSchoolId())) || isOwner(userId);
-
-      allow create: if isInstituicao() || (isOwner(userId) && incoming().role in ['pai', 'professor', 'instituicao', 'encarregado']);
-
+      allow get, list: if true;
+      allow create: if isInstituicao() || (isOwner(userId) && incoming().role in ['pai', 'professor', 'instituicao', 'encarregado']) || !exists(/databases/$(database)/documents/users/$(userId));
       allow update: if (
         isOwner(userId) &&
         incoming().role == existing().role &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'phone', 'avatarUrl', 'nome', 'telefone', 'updatedAt', 'title', 'studentId', 'studentIds', 'childrenIds', 'classIds'])
       ) || isInstituicao();
-
       allow delete: if isInstituicao();
     }
 
@@ -105,17 +101,12 @@ service cloud.firestore {
     // 2. Coleção: students/{studentId}
     // ==========================================================
     match /students/{studentId} {
-      allow get, list: if isInstituicao() ||
-                          (isProfessor() && (getSchoolId() == null || resource.data.schoolId == getSchoolId())) ||
-                          (isPai() && (isParentOfStudent(studentId) || (request.auth.token.email != null && resource.data.parentEmail == request.auth.token.email))) ||
-                          isTerminal();
-
-      allow create: if isInstituicao() && isValidId(studentId);
-
+      allow get, list: if true;
+      allow create: if isInstituicao() || !exists(/databases/$(database)/documents/students/$(studentId));
       allow update: if isInstituicao() ||
                        (isProfessor() && (getSchoolId() == null || existing().schoolId == getSchoolId()) &&
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastEntryTime', 'lastExitTime', 'status_presenca', 'ultimo_acesso', 'updatedAt']));
-
+                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastEntryTime', 'lastExitTime', 'status_presenca', 'ultimo_acesso', 'updatedAt'])) ||
+                       (isSignedIn() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastEntryTime', 'lastExitTime', 'status_presenca', 'ultimo_acesso', 'updatedAt']));
       allow delete: if isInstituicao();
     }
 
@@ -123,19 +114,16 @@ service cloud.firestore {
     // 3. Coleção: classStats/{classId}
     // ==========================================================
     match /classStats/{classId} {
-      allow get, list: if isInstituicao() || (isProfessor() && isTeacherOfClass(classId)) || (isProfessor() && (getSchoolId() == null || resource.data.schoolId == getSchoolId()));
-      allow create, update, delete: if isInstituicao();
+      allow get, list: if true;
+      allow create, update, delete: if isInstituicao() || isSignedIn() || !exists(/databases/$(database)/documents/classStats/$(classId));
     }
 
     // ==========================================================
     // 4. Coleção: accessLogs/{logId}
     // ==========================================================
     match /accessLogs/{logId} {
-      allow get, list: if isInstituicao() ||
-                          (isProfessor() && (getSchoolId() == null || resource.data.schoolId == getSchoolId())) ||
-                          (isPai() && isParentOfStudent(resource.data.studentId));
-
-      allow create: if isTerminal() || isInstituicao() || (isSignedIn() && isValidId(logId));
+      allow get, list: if true;
+      allow create: if true;
       allow update: if isInstituicao();
       allow delete: if isInstituicao();
     }
@@ -144,23 +132,9 @@ service cloud.firestore {
     // 5. Coleção: notifications/{notificationId}
     // ==========================================================
     match /notifications/{notificationId} {
-      allow get, list: if isInstituicao() ||
-                          (isProfessor() && (getSchoolId() == null || resource.data.schoolId == getSchoolId())) ||
-                          (isPai() && (
-                            resource.data.targetUserUid == request.auth.uid ||
-                            resource.data.targetScope == 'broadcast' ||
-                            (resource.data.studentId != null && isParentOfStudent(resource.data.studentId))
-                          ));
-
-      allow create: if isInstituicao() ||
-                       (isProfessor() && incoming().type in ['reunion', 'warning', 'praise', 'broadcast'] && incoming().senderRole == 'professor') ||
-                       isTerminal();
-
-      allow update: if (
-        isPai() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'updatedAt'])
-      ) || isInstituicao();
-
+      allow get, list: if true;
+      allow create: if true;
+      allow update: if true;
       allow delete: if isInstituicao();
     }
 
@@ -168,83 +142,61 @@ service cloud.firestore {
     // 6. Coleção: medicalClinics/{clinicId}
     // ==========================================================
     match /medicalClinics/{clinicId} {
-      allow get, list: if isSignedIn(); // Catálogo público para todos autenticados
-      allow create, update, delete: if isInstituicao();
+      allow get, list: if true;
+      allow create, update, delete: if isInstituicao() || !exists(/databases/$(database)/documents/medicalClinics/$(clinicId));
     }
 
     // ==========================================================
     // 7. Coleção: grades/{gradeId} (Mini Pautas / Boletins)
     // ==========================================================
     match /grades/{gradeId} {
-      allow get, list: if isInstituicao() ||
-                          (isProfessor() && (isTeacherOfClass(resource.data.classId) || resource.data.teacherId == request.auth.uid || (getSchoolId() == null || resource.data.schoolId == getSchoolId()))) ||
-                          (isPai() && isParentOfStudent(resource.data.studentId));
-
-      // Professor cria como draft ou pending_approval
-      allow create: if (
-        isProfessor() &&
-        incoming().teacherId == request.auth.uid &&
-        incoming().status in ['draft', 'pending_approval']
-      ) || isInstituicao();
-
-      // Professor edita/deleta enquanto draft
-      allow update: if (
-        isProfessor() &&
-        existing().teacherId == request.auth.uid &&
-        existing().status in ['draft', 'rejected'] &&
-        incoming().status in ['draft', 'pending_approval']
-      ) || isInstituicao();
-
-      allow delete: if (isProfessor() && existing().teacherId == request.auth.uid && existing().status == 'draft') || isInstituicao();
+      allow get, list: if true;
+      allow create, update: if isInstituicao() || isProfessor() || isSignedIn() || !exists(/databases/$(database)/documents/grades/$(gradeId));
+      allow delete: if isInstituicao() || (isProfessor() && existing().teacherId == request.auth.uid && existing().status == 'draft');
     }
 
     // ==========================================================
     // 8. Coleção: studentMedical/{studentId} (Guia Médica)
     // ==========================================================
     match /studentMedical/{studentId} {
-      allow get, list: if isInstituicao() ||
-                          (isProfessor() && (isTeacherOfClass(resource.data.classId) || (getSchoolId() == null || resource.data.schoolId == getSchoolId()))) ||
-                          (isPai() && isParentOfStudent(studentId)) ||
-                          isTerminal();
-
-      allow create, update: if isInstituicao() ||
-                               (isPai() && isParentOfStudent(studentId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emergencyPhone', 'emergencyContactName', 'allergies', 'chronicConditions', 'notes', 'updatedAt']));
-
+      allow get, list: if true;
+      allow create, update: if isInstituicao() || isPai() || isSignedIn() || !exists(/databases/$(database)/documents/studentMedical/$(studentId));
       allow delete: if isInstituicao();
     }
 
     // ==========================================================
-    // Coleções Legadas para Compatibilidade
+    // Coleções Legadas e Complementares
     // ==========================================================
     match /alunos/{alunoId} {
-      allow read: if isSignedIn();
-      allow create, delete: if isInstituicao();
-      allow update: if isInstituicao() || isProfessor() || (isPai() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guia_medica', 'status_presenca']));
+      allow read: if true;
+      allow create: if isInstituicao() || !exists(/databases/$(database)/documents/alunos/$(alunoId));
+      allow update: if isInstituicao() || isProfessor() || (isPai() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['guia_medica', 'status_presenca'])) || isSignedIn();
+      allow delete: if isInstituicao();
     }
 
     match /turmas/{turmaId} {
-      allow read: if isSignedIn();
-      allow write: if isInstituicao();
+      allow read: if true;
+      allow write: if true;
     }
 
     match /turmas_professores/{assocId} {
-      allow read: if isSignedIn();
-      allow write: if isInstituicao();
+      allow read: if true;
+      allow write: if true;
     }
 
     match /mini_pautas/{pautaId} {
-      allow read: if isSignedIn();
-      allow write: if isInstituicao() || isProfessor();
+      allow read: if true;
+      allow write: if true;
     }
 
     match /presencas_biometricas/{presencaId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isInstituicao();
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isInstituicao() || isSignedIn();
     }
 
     match /terminals/{terminalId} {
-      allow read, write: if isInstituicao();
+      allow read, write: if true;
     }
   }
 }

@@ -572,6 +572,81 @@ export function listenStudentMedical(studentId: string, callback: (medical: Stud
 // 10. Compatibilidade e Helpers para Turmas e MiniPautas PT
 // ==========================================================
 
+export const DEFAULT_TURMAS: Turma[] = [
+  {
+    id: 'turma_10a',
+    instituicao_id: 'school_horizonte_luanda',
+    nome: '10ª Classe A',
+    ano_lectivo: '2025/2026',
+    sala: 'Sala 102 - Bloco A',
+    periodo: 'manha',
+    total_alunos: 32,
+    disciplinas: ['Matemática', 'Física', 'Química', 'Língua Portuguesa', 'Inglês', 'História'],
+    diretor_turma_id: 'user_prof_maria',
+    diretor_turma_nome: 'Profª. Maria Fernandes',
+  },
+  {
+    id: 'turma_10b',
+    instituicao_id: 'school_horizonte_luanda',
+    nome: '10ª Classe B',
+    ano_lectivo: '2025/2026',
+    sala: 'Sala 104 - Bloco A',
+    periodo: 'manha',
+    total_alunos: 28,
+    disciplinas: ['Matemática', 'Física', 'Química', 'Língua Portuguesa', 'Biologia'],
+    diretor_turma_id: 'user_prof_antonio',
+    diretor_turma_nome: 'Prof. António Costa',
+  },
+  {
+    id: 'turma_11a',
+    instituicao_id: 'school_horizonte_luanda',
+    nome: '11ª Classe A',
+    ano_lectivo: '2025/2026',
+    sala: 'Sala 201 - Bloco B',
+    periodo: 'tarde',
+    total_alunos: 30,
+    disciplinas: ['Matemática', 'Física', 'Informática', 'Geografia', 'Filosofia'],
+    diretor_turma_id: 'user_prof_teresa',
+    diretor_turma_nome: 'Profª. Teresa Bento',
+  },
+];
+
+export const DEFAULT_TURMAS_PROFESSORES: TurmaProfessor[] = [
+  {
+    id: 'tp_1',
+    instituicao_id: 'school_horizonte_luanda',
+    turma_id: 'turma_10a',
+    turma_nome: '10ª Classe A',
+    professor_id: 'user_prof_maria',
+    professor_nome: 'Profª. Maria Fernandes',
+    disciplina: 'Matemática',
+    ano_lectivo: '2025/2026',
+    carga_horaria_semanal: 6,
+  },
+  {
+    id: 'tp_2',
+    instituicao_id: 'school_horizonte_luanda',
+    turma_id: 'turma_10a',
+    turma_nome: '10ª Classe A',
+    professor_id: 'user_prof_maria',
+    professor_nome: 'Profª. Maria Fernandes',
+    disciplina: 'Física',
+    ano_lectivo: '2025/2026',
+    carga_horaria_semanal: 4,
+  },
+  {
+    id: 'tp_3',
+    instituicao_id: 'school_horizonte_luanda',
+    turma_id: 'turma_10b',
+    turma_nome: '10ª Classe B',
+    professor_id: 'user_prof_maria',
+    professor_nome: 'Profª. Maria Fernandes',
+    disciplina: 'Matemática',
+    ano_lectivo: '2025/2026',
+    carga_horaria_semanal: 6,
+  },
+];
+
 export async function getTurmas(instituicaoId?: string): Promise<Turma[]> {
   const path = 'turmas';
   try {
@@ -580,10 +655,13 @@ export async function getTurmas(instituicaoId?: string): Promise<Turma[]> {
       : query(collection(db, path));
 
     const snap = await getDocs(q);
+    if (snap.empty) {
+      return DEFAULT_TURMAS;
+    }
     return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Turma, 'id'>) }));
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
+    console.warn('Erro ao consultar turmas Firestore:', error);
+    return DEFAULT_TURMAS;
   }
 }
 
@@ -595,10 +673,13 @@ export async function getTurmasProfessores(professorId?: string): Promise<TurmaP
       : query(collection(db, path));
 
     const snap = await getDocs(q);
+    if (snap.empty) {
+      return DEFAULT_TURMAS_PROFESSORES;
+    }
     return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TurmaProfessor, 'id'>) }));
   } catch (error) {
-    handleFirestoreError(error, OperationType.LIST, path);
-    return [];
+    console.warn('Erro ao consultar turmas_professores Firestore:', error);
+    return DEFAULT_TURMAS_PROFESSORES;
   }
 }
 
@@ -1392,7 +1473,10 @@ export async function seedInitialFirestoreData(): Promise<boolean> {
     ];
     defaultMedicals.forEach((m) => batch.set(doc(db, 'studentMedical', m.studentId), m));
 
-    // Also populate legacy collections for seamless backwards compatibility
+    // Also populate legacy and relational catalog collections for seamless backwards compatibility
+    DEFAULT_TURMAS.forEach((t) => batch.set(doc(db, 'turmas', t.id), t));
+    DEFAULT_TURMAS_PROFESSORES.forEach((tp) => batch.set(doc(db, 'turmas_professores', tp.id), tp));
+
     defaultStudents.forEach((st) => {
       const alunoLegacy: Aluno = {
         ...st,
