@@ -25,7 +25,7 @@ import { audioManager } from './sound';
 interface SystemContextType {
   currentUser: UserAccount | null;
   isAuthenticated: boolean;
-  login: (role: UserRole, emailOrPhone?: string) => Promise<boolean>;
+  login: (emailOrPhone: string, password?: string) => Promise<boolean>;
   logout: () => void;
   isTerminalAuthorized: boolean;
   setTerminalAuthorized: (val: boolean) => void;
@@ -112,25 +112,43 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [toastMessage]);
 
-  const login = async (role: UserRole, emailOrPhone?: string): Promise<boolean> => {
-    const user = MOCK_USERS[role];
-    if (user) {
-      const updatedUser = {
-        ...user,
-        email: emailOrPhone && emailOrPhone.includes('@') ? emailOrPhone : user.email,
-        phone: emailOrPhone && !emailOrPhone.includes('@') ? emailOrPhone : user.phone,
-      };
-      setCurrentUser(updatedUser);
+  const login = async (emailOrPhone: string, _password?: string): Promise<boolean> => {
+    if (!emailOrPhone || !emailOrPhone.trim()) return false;
+
+    const trimmedInput = emailOrPhone.trim();
+    const normalizedInput = trimmedInput.toLowerCase();
+    const normalizedDigits = trimmedInput.replace(/\D/g, '');
+
+    // 1. Direct role key check (pai, professor, instituicao) for internal transitions
+    let foundUser: UserAccount | undefined = MOCK_USERS[trimmedInput as UserRole];
+
+    // 2. Search by email or phone in MOCK_USERS
+    if (!foundUser) {
+      foundUser = Object.values(MOCK_USERS).find((user) => {
+        const uEmail = user.email.trim().toLowerCase();
+        const uPhone = user.phone.trim().toLowerCase();
+        const uPhoneDigits = user.phone.replace(/\D/g, '');
+
+        if (uEmail === normalizedInput) return true;
+        if (uPhone === normalizedInput) return true;
+        if (normalizedDigits.length >= 7 && uPhoneDigits.includes(normalizedDigits)) return true;
+        return false;
+      });
+    }
+
+    if (foundUser) {
+      setCurrentUser(foundUser);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('alomae_user', JSON.stringify(updatedUser));
+        localStorage.setItem('alomae_user', JSON.stringify(foundUser));
       }
       setToastMessage({
-        title: `Sessão iniciada como ${user.role.toUpperCase()}`,
-        desc: `Bem-vindo(a), ${user.name}!`,
+        title: `Sessão iniciada como ${foundUser.role.toUpperCase()}`,
+        desc: `Bem-vindo(a), ${foundUser.name}!`,
         type: 'success',
       });
       return true;
     }
+
     return false;
   };
 
