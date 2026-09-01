@@ -22,20 +22,20 @@ export const PaiHeader: React.FC = () => {
 
   return (
     <header className="bg-[#0D1B3D] text-white border-b border-white/10 sticky top-0 z-40 shadow-lg pt-[env(safe-area-inset-top)]">
-      <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <div className="max-w-4xl mx-auto px-3 sm:px-4 py-2 sm:py-3 flex items-center justify-between gap-1.5 sm:gap-3">
 
         {/* Brand */}
-        <Link href="/pai/inicio" className="shrink-0">
+        <Link href="/pai/inicio" className="shrink-0 scale-90 sm:scale-100 origin-left">
           <Logo variant="light" size="sm" showSubtitle={false} />
         </Link>
 
         {/* Student Selector */}
-        <div className="flex items-center gap-2">
-          <div className="relative group">
-            <button className="flex items-center gap-2 bg-[#143A7B]/80 hover:bg-[#143A7B] px-3 py-1.5 rounded-full border border-blue-400/30 text-xs font-medium text-white transition-all">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="truncate max-w-[120px] sm:max-w-[180px]">{selectedStudent.name}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-blue-200 shrink-0" />
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="relative group min-w-0">
+            <button className="flex items-center gap-1.5 sm:gap-2 bg-[#143A7B]/80 hover:bg-[#143A7B] px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-blue-400/30 text-[11px] sm:text-xs font-medium text-white transition-all max-w-full">
+              <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+              <span className="truncate max-w-[72px] sm:max-w-[180px]">{selectedStudent.name}</span>
+              <ChevronDown className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-200 shrink-0" />
             </button>
 
             <div className="absolute left-0 mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 hidden group-hover:block z-50 text-slate-800">
@@ -66,12 +66,12 @@ export const PaiHeader: React.FC = () => {
         </div>
 
         {/* Right Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Quick SOS Medical Guide Button */}
           <button
             onClick={handleSOS}
             title="Emitir Guia Médica SOS 24h"
-            className="flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm transition-all animate-bounce duration-1000"
+            className="flex items-center justify-center gap-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white w-8 h-8 sm:w-auto sm:h-auto px-0 sm:px-3 py-0 sm:py-1.5 rounded-full text-xs font-semibold shadow-sm transition-all animate-bounce duration-1000"
           >
             <HeartPulse className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Guia SOS</span>
@@ -80,9 +80,9 @@ export const PaiHeader: React.FC = () => {
           {/* Notifications link */}
           <Link
             href="/pai/notificacoes"
-            className="relative p-2 rounded-full bg-white/5 hover:bg-white/15 text-white transition-colors"
+            className="relative p-1.5 sm:p-2 rounded-full bg-white/5 hover:bg-white/15 text-white transition-colors"
           >
-            <Bell className="w-4 h-4" />
+            <Bell className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             {unreadCount > 0 && (
               <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-[10px] font-bold rounded-full flex items-center justify-center text-white ring-2 ring-[#0D1B3D]">
                 {unreadCount}
