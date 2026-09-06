@@ -1,0 +1,38 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Public school logos and assets
+    match /institutions/{institutionId}/logos/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // User avatars
+    match /users/{userId}/avatars/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Student profile photos
+    match /students/{studentId}/profile/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // Medical guides documents
+    match /medical-guides/{institutionId}/{studentId}/{allPaths=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    // Institutional documents
+    match /documents/{institutionId}/{allPaths=**} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+  }
+}

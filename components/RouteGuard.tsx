@@ -13,7 +13,7 @@ interface RouteGuardProps {
 }
 
 export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }) => {
-  const { currentUser, isAuthenticated, login } = useSystem();
+  const { currentUser, isAuthenticated, login, logout } = useSystem();
   const router = useRouter();
 
   if (!isAuthenticated || !currentUser) {
@@ -48,6 +48,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
       professor: 'Professor(a) / Docente',
       instituicao: 'Administração / Instituição',
       admin: 'Administração / Instituição',
+      terminal: 'Terminal Quiosque Biométrico',
     };
 
     const targetRoute =
@@ -81,27 +82,17 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
           <div className="flex flex-col gap-2.5">
             <button
               onClick={() => router.push(targetRoute)}
-              className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2.5 px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all"
+              className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2.5 px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all shadow-sm"
             >
-              <span>Ir para o meu Portal ({roleLabels[currentUser.role].split(' ')[0]})</span>
+              <span>Ir para o meu Portal ({roleLabels[currentUser.role]?.split(' ')[0] || 'Início'})</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
             <button
-              onClick={() => {
-                const targetRole = allowedRoles[0];
-                login(targetRole);
-              }}
-              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 px-4 rounded-xl text-xs font-medium transition-all"
+              onClick={() => logout()}
+              className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 py-2.5 px-4 rounded-xl text-xs font-medium transition-all"
             >
-              Alternar para conta {allowedRoles[0].toUpperCase()}
-            </button>
-
-            <button
-              onClick={() => router.push('/login')}
-              className="w-full text-slate-500 hover:text-slate-800 text-xs py-2 transition-colors"
-            >
-              Sair e trocar de conta
+              Terminar Sessão Atual
             </button>
           </div>
         </div>

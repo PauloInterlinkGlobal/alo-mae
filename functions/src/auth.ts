@@ -6,216 +6,364 @@ const auth = admin.auth();
 const db = admin.firestore();
 
 /**
- * Função Auxiliar para definir Custom Claims em um utilizador Firebase
+ * Helper to update user claims
  */
 export async function setUserCustomClaims(uid: string, claims: CustomClaims): Promise<void> {
   await auth.setCustomUserClaims(uid, claims);
 }
 
 /**
- * HTTPS Callable: provisionTeacherClass (FIX #1 & FIX #2)
- * Atribui turmas (classIds) ao docente e atualiza as Custom Claims
+ * HTTPS Callable: enrollStudent (v3)
+ * Só invocável por instituição escolar.
+ * Cadastra aluno, pesquisa ou cria encarregado (pai) e vincula às turmas e claims.
  */
-export const provisionTeacherClass = onCall(async (request: CallableRequest) => {
+export const enrollStudent = onCall(async (request: CallableRequest) => {
   if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    throw new HttpsError('unauthenticated', 'É necessária autenticação para matricular alunos.');
   }
 
-  const callerToken = request.auth.token;
-  if (callerToken.role !== 'instituicao') {
-    throw new HttpsError('permission-denied', 'Apenas a instituição escolar pode atribuir turmas a professores.');
+  const callerRole = request.auth.token.role;
+  const schoolId = request.auth.token.schoolId;
+
+  if (callerRole !== 'instituicao' || !schoolId) {
+    throw new HttpsError('permission-denied', 'Apenas a instituição pode matricular alunos.');
   }
 
-  const schoolId = callerToken.schoolId;
-  const { teacherUid, classIds } = request.data as {
-    teacherUid: string;
+  const { student, parent, classId } = request.data as {
+    student: {
+      matricula: string;
+      name: string;
+      photoUrl?: string;
+      biometricCode?: string;
+      insurancePolicyId?: string;
+    };
+    parent: {
+      name: string;
+      email: string;
+      phone: string;
+    };
+    classId: string;
+  };
+
+  if (!student?.matricula || !student?.name || !parent?.email || !parent?.phone || !classId) {
+    throw new HttpsError('invalid-argument', 'Campos obrigatórios: student.matricula, student.name, parent.email, parent.phone e classId.');
+  }
+
+  const normalizedEmail = parent.email.trim().toLowerCase();
+  const rawPhone = parent.phone.replace(/[^\d+]/g, '');
+
+  try {
+    // 1. Procurar ou criar pai existente por email/telefone
+    let parentUid: string;
+    let existingParentDoc: FirebaseFirestore.DocumentSnapshot | null = null;
+
+    try {
+      const authUser = await auth.getUserByEmail(normalizedEmail);
+      parentUid = authUser.uid;
+      existingParentDoc = await db.collection('users').doc(parentUid).get();
+    } catch (err: any) {
+      if (err.code !== 'auth/user-not-found') throw err;
+
+      // Se não existir por email, pesquisar por telefone no Firestore
+      const phoneQuery = await db.collection('users')
+        .where('phone', '==', rawPhone)
+        .where('role', '==', 'pai')
+        .limit(1)
+        .get();
+
+      if (!phoneQuery.empty) {
+        parentUid = phoneQuery.docs[0].id;
+        existingParentDoc = phoneQuery.docs[0];
+      } else {
+        // Criar utilizador no Firebase Auth
+        const tempPassword = `AloMae#${Math.random().toString(36).slice(-8)}`;
+        const newAuthUser = await auth.createUser({
+          email: normalizedEmail,
+          phoneNumber: rawPhone.startsWith('+') ? rawPhone : undefined,
+          displayName: parent.name.trim(),
+          password: tempPassword,
+        });
+        parentUid = newAuthUser.uid;
+      }
+    }
+
+    // 2. Gerar ID determinístico e idempotente do aluno
+    const studentId = `std_${schoolId}_${student.matricula.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+    const studentRef = db.collection('students').doc(studentId);
+    const classRef = db.collection('classes').doc(classId);
+
+    await db.runTransaction(async (transaction) => {
+      const studentDoc = await transaction.get(studentRef);
+      const isNewStudent = !studentDoc.exists;
+      const previousClassId = studentDoc.exists ? studentDoc.data()?.classId : null;
+
+      // Carregar turma para obter nome da turma
+      const classDoc = await transaction.get(classRef);
+      const className = classDoc.exists ? classDoc.data()?.name || 'Turma Atribuída' : 'Turma Atribuída';
+
+      const studentPayload = {
+        id: studentId,
+        matricula: student.matricula.trim(),
+        name: student.name.trim(),
+        fullName: student.name.trim(),
+        classId,
+        className,
+        schoolId,
+        parentUid,
+        parentName: parent.name.trim(),
+        parentPhone: rawPhone,
+        parentEmail: normalizedEmail,
+        photoUrl: student.photoUrl || '',
+        status: studentDoc.exists ? studentDoc.data()?.status || 'absent' : 'absent',
+        biometricCode: student.biometricCode || `BIO-FACIAL-${Math.floor(10000 + Math.random() * 90000)}-${student.name.split(' ')[0].toUpperCase()}`,
+        insurancePolicyId: student.insurancePolicyId || '',
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: isNewStudent ? admin.firestore.FieldValue.serverTimestamp() : studentDoc.data()?.createdAt,
+      };
+
+      transaction.set(studentRef, studentPayload, { merge: true });
+
+      // Atualizar documento do pai com arrayUnion
+      const parentUserRef = db.collection('users').doc(parentUid);
+      transaction.set(parentUserRef, {
+        id: parentUid,
+        name: parent.name.trim(),
+        email: normalizedEmail,
+        phone: rawPhone,
+        role: 'pai',
+        studentIds: admin.firestore.FieldValue.arrayUnion(studentId),
+        schoolIds: admin.firestore.FieldValue.arrayUnion(schoolId),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+      // Incrementar contador de alunos na turma se for novo ou mudou de turma
+      if (isNewStudent) {
+        transaction.set(classRef, {
+          studentCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      } else if (previousClassId && previousClassId !== classId) {
+        const prevClassRef = db.collection('classes').doc(previousClassId);
+        transaction.set(prevClassRef, {
+          studentCount: admin.firestore.FieldValue.increment(-1),
+        }, { merge: true });
+        transaction.set(classRef, {
+          studentCount: admin.firestore.FieldValue.increment(1),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+      }
+    });
+
+    // 3. Atualizar Custom Claims do Pai
+    const parentAuth = await auth.getUser(parentUid);
+    const claims = parentAuth.customClaims || {};
+    const existingStudentIds: string[] = Array.isArray(claims.studentIds) ? claims.studentIds : [];
+    const existingSchoolIds: string[] = Array.isArray(claims.schoolIds) ? claims.schoolIds : [];
+
+    const updatedStudentIds = Array.from(new Set([...existingStudentIds, studentId]));
+    const updatedSchoolIds = Array.from(new Set([...existingSchoolIds, schoolId]));
+
+    await auth.setCustomUserClaims(parentUid, {
+      ...claims,
+      role: 'pai',
+      studentIds: updatedStudentIds,
+      schoolIds: updatedSchoolIds,
+    });
+
+    return {
+      success: true,
+      message: `Aluno ${student.name} matriculado com sucesso.`,
+      studentId,
+      parentUid,
+      isExistingParent: !!existingParentDoc?.exists,
+    };
+  } catch (error: any) {
+    console.error('Erro em enrollStudent:', error);
+    throw new HttpsError('internal', error.message || 'Falha ao processar matrícula.');
+  }
+});
+
+/**
+ * HTTPS Callable: enrollTeacher (v3)
+ * Cria ou atualiza docente para uma escola específica e associa turmas em classes/{id}.teacherIds
+ */
+export const enrollTeacher = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'É necessária autenticação para cadastrar docentes.');
+  }
+
+  const callerRole = request.auth.token.role;
+  const schoolId = request.auth.token.schoolId;
+
+  if (callerRole !== 'instituicao' || !schoolId) {
+    throw new HttpsError('permission-denied', 'Apenas a instituição pode cadastrar docentes.');
+  }
+
+  const { teacher, classIds } = request.data as {
+    teacher: {
+      name: string;
+      email: string;
+      phone: string;
+      title?: string;
+    };
     classIds: string[];
   };
 
-  if (!teacherUid || !Array.isArray(classIds)) {
-    throw new HttpsError('invalid-argument', 'Parâmetros "teacherUid" e "classIds" (array) são obrigatórios.');
+  if (!teacher?.email || !teacher?.name || !Array.isArray(classIds)) {
+    throw new HttpsError('invalid-argument', 'O email, nome e lista de turmas são obrigatórios.');
   }
 
-  const teacherRef = db.collection('users').doc(teacherUid);
-  const teacherSnap = await teacherRef.get();
+  const normalizedEmail = teacher.email.trim().toLowerCase();
+  const rawPhone = teacher.phone ? teacher.phone.replace(/[^\d+]/g, '') : '';
 
-  if (!teacherSnap.exists) {
-    throw new HttpsError('not-found', `Docente com UID "${teacherUid}" não encontrado.`);
+  try {
+    let teacherUid: string;
+    let isNewUser = false;
+
+    try {
+      const existing = await auth.getUserByEmail(normalizedEmail);
+      teacherUid = existing.uid;
+    } catch (err: any) {
+      if (err.code !== 'auth/user-not-found') throw err;
+
+      const tempPassword = `Prof#${Math.random().toString(36).slice(-8)}`;
+      const newAuth = await auth.createUser({
+        email: normalizedEmail,
+        displayName: teacher.name.trim(),
+        phoneNumber: rawPhone.startsWith('+') ? rawPhone : undefined,
+        password: tempPassword,
+      });
+      teacherUid = newAuth.uid;
+      isNewUser = true;
+    }
+
+    const teacherRef = db.collection('users').doc(teacherUid);
+    const teacherSnap = await teacherRef.get();
+
+    if (teacherSnap.exists) {
+      const data = teacherSnap.data()!;
+      if (data.schoolId && data.schoolId !== schoolId) {
+        throw new HttpsError('failed-precondition', 'Este docente já está vinculado a outra instituição de ensino.');
+      }
+    }
+
+    // 1. Atualizar utilizador no Firestore
+    await teacherRef.set({
+      id: teacherUid,
+      name: teacher.name.trim(),
+      email: normalizedEmail,
+      phone: rawPhone,
+      role: 'professor',
+      schoolId,
+      title: teacher.title || 'Docente',
+      classIds: admin.firestore.FieldValue.arrayUnion(...classIds),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: teacherSnap.exists ? teacherSnap.data()?.createdAt : admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    // 2. Atualizar classes/{classId}.teacherIds para cada turma
+    const batch = db.batch();
+    for (const cId of classIds) {
+      const cRef = db.collection('classes').doc(cId);
+      batch.set(cRef, {
+        teacherIds: admin.firestore.FieldValue.arrayUnion(teacherUid),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+    }
+    await batch.commit();
+
+    // 3. Atualizar Custom Claims do Professor
+    const teacherRecord = await auth.getUser(teacherUid);
+    const currentClaims = teacherRecord.customClaims || {};
+    const existingClassIds: string[] = Array.isArray(currentClaims.classIds) ? currentClaims.classIds : [];
+    const mergedClassIds = Array.from(new Set([...existingClassIds, ...classIds]));
+
+    await auth.setCustomUserClaims(teacherUid, {
+      ...currentClaims,
+      role: 'professor',
+      schoolId,
+      classIds: mergedClassIds,
+    });
+
+    return {
+      success: true,
+      message: `Docente ${teacher.name} registado com sucesso.`,
+      teacherUid,
+      schoolId,
+      assignedClassIds: mergedClassIds,
+      isNewUser,
+    };
+  } catch (error: any) {
+    console.error('Erro em enrollTeacher:', error);
+    throw new HttpsError('internal', error.message || 'Falha ao processar registo de docente.');
   }
-
-  const teacherData = teacherSnap.data()!;
-  if (teacherData.schoolId !== schoolId) {
-    throw new HttpsError('permission-denied', 'Não tem permissão para gerir docentes de outra instituição.');
-  }
-
-  // 1. Atualizar documento do utilizador no Firestore
-  await teacherRef.set({
-    classIds,
-    assignedClassIds: classIds,
-    updatedAt: new Date().toISOString()
-  }, { merge: true });
-
-  // 2. Atualizar Custom Claims no Firebase Auth
-  const currentClaims = (await auth.getUser(teacherUid)).customClaims || {};
-  const updatedClaims: CustomClaims = {
-    role: 'professor',
-    schoolId,
-    classIds,
-    assignedClassIds: classIds,
-    ...currentClaims,
-  };
-
-  await auth.setCustomUserClaims(teacherUid, updatedClaims);
-
-  return {
-    success: true,
-    message: `Turmas associadas com sucesso ao docente (${classIds.length} turmas).`,
-    teacherUid,
-    classIds
-  };
 });
 
 /**
- * HTTPS Callable: linkParentToStudent
- * Vincula um pai a um ou mais alunos na base de dados e atualiza as Custom Claims
- */
-export const linkParentToStudent = onCall(async (request: CallableRequest) => {
-  if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'O utilizador deve estar autenticado para executar esta operação.');
-  }
-
-  const callerToken = request.auth.token;
-  const callerRole = callerToken.role;
-  const callerSchoolId = callerToken.schoolId;
-
-  const { parentUid, studentId, verificationOtp } = request.data as {
-    parentUid: string;
-    studentId: string;
-    verificationOtp?: string;
-  };
-
-  if (!parentUid || !studentId) {
-    throw new HttpsError('invalid-argument', 'Parâmetros "parentUid" e "studentId" são obrigatórios.');
-  }
-
-  const isSchoolAdmin = callerRole === 'instituicao' && callerSchoolId;
-
-  const studentRef = db.collection('students').doc(studentId);
-  const studentSnap = await studentRef.get();
-
-  if (!studentSnap.exists) {
-    throw new HttpsError('not-found', `Aluno com ID "${studentId}" não foi encontrado.`);
-  }
-
-  const studentData = studentSnap.data()!;
-  const studentSchoolId = studentData.schoolId;
-
-  if (isSchoolAdmin && callerSchoolId !== studentSchoolId) {
-    throw new HttpsError('permission-denied', 'Não tem permissão para vincular alunos de outra escola.');
-  }
-
-  const parentUserRef = db.collection('users').doc(parentUid);
-  const parentUserSnap = await parentUserRef.get();
-
-  if (!parentUserSnap.exists) {
-    throw new HttpsError('not-found', `Utilizador pai com UID "${parentUid}" não foi encontrado.`);
-  }
-
-  const parentUserData = parentUserSnap.data()!;
-
-  if (!isSchoolAdmin) {
-    const isSelf = request.auth.uid === parentUid;
-    if (!isSelf) {
-      throw new HttpsError('permission-denied', 'Apenas a instituição ou o próprio pai autenticado podem vincular o aluno.');
-    }
-
-    const emailMatches = studentData.parentEmail && studentData.parentEmail.toLowerCase() === parentUserData.email?.toLowerCase();
-    const phoneMatches = studentData.parentPhone && studentData.parentPhone.replace(/\D/g, '') === parentUserData.phone?.replace(/\D/g, '');
-
-    if (!emailMatches && !phoneMatches && !verificationOtp) {
-      throw new HttpsError('permission-denied', 'Os dados de contacto do aluno não coincidem com este perfil de encarregado.');
-    }
-  }
-
-  const existingChildren: string[] = parentUserData.childrenIds || (parentUserData.studentId ? [parentUserData.studentId] : []);
-  if (!existingChildren.includes(studentId)) {
-    existingChildren.push(studentId);
-  }
-
-  await parentUserRef.set({
-    childrenIds: existingChildren,
-    studentId: existingChildren[0],
-    schoolId: studentSchoolId,
-    updatedAt: new Date().toISOString()
-  }, { merge: true });
-
-  const currentClaims = (await auth.getUser(parentUid)).customClaims || {};
-  const updatedClaims: CustomClaims = {
-    role: 'pai',
-    schoolId: studentSchoolId,
-    studentIds: existingChildren,
-    studentId: existingChildren[0],
-    ...currentClaims,
-  };
-
-  await auth.setCustomUserClaims(parentUid, updatedClaims);
-
-  return {
-    success: true,
-    message: `Aluno "${studentData.name}" vinculado com sucesso ao encarregado.`,
-    studentId,
-    parentUid,
-    childrenIds: existingChildren
-  };
-});
-
-/**
- * HTTPS Callable: provisionTerminalDevice
- * Permite que administradores escolares gerem tokens de serviço dedicados para dispositivos biométricos
+ * HTTPS Callable: provisionTerminalDevice (v3)
  */
 export const provisionTerminalDevice = onCall(async (request: CallableRequest) => {
   if (!request.auth) {
-    throw new HttpsError('unauthenticated', 'Autenticação necessária.');
+    throw new HttpsError('unauthenticated', 'É necessária autenticação para provisionar quiosques.');
   }
 
   const callerToken = request.auth.token;
-  if (callerToken.role !== 'instituicao') {
-    throw new HttpsError('permission-denied', 'Apenas administradores de instituições podem provisionar terminais biométricos.');
+  if (callerToken.role !== 'instituicao' || !callerToken.schoolId) {
+    throw new HttpsError('permission-denied', 'Apenas a instituição pode provisionar quiosques.');
   }
 
   const schoolId = callerToken.schoolId;
   const { deviceSerial, deviceLocation } = request.data as {
     deviceSerial: string;
-    deviceLocation: string;
+    deviceLocation?: string;
   };
 
   if (!deviceSerial) {
-    throw new HttpsError('invalid-argument', 'O número de série do dispositivo ("deviceSerial") é obrigatório.');
+    throw new HttpsError('invalid-argument', 'O número de série do dispositivo é obrigatório.');
   }
 
   const terminalUid = `terminal_${schoolId}_${deviceSerial.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
-
-  const terminalClaims: CustomClaims = {
-    role: 'terminal',
-    schoolId: schoolId,
-  };
 
   await db.collection('terminals').doc(terminalUid).set({
     id: terminalUid,
     deviceSerial,
     location: deviceLocation || 'Portaria Principal',
     schoolId,
-    createdAt: new Date().toISOString(),
-    lastActiveAt: new Date().toISOString(),
-    status: 'active'
+    status: 'active',
+    lastProvisionedAt: new Date().toISOString(),
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
   }, { merge: true });
 
-  const customToken = await auth.createCustomToken(terminalUid, terminalClaims);
+  const customToken = await auth.createCustomToken(terminalUid, {
+    role: 'terminal',
+    schoolId,
+  });
 
   return {
     success: true,
     terminalUid,
     customToken,
-    schoolId
+    schoolId,
   };
+});
+
+/**
+ * Compatibilidade legada
+ */
+export const provisionTeacherClass = enrollTeacher;
+export const linkParentToStudent = onCall(async (request: CallableRequest) => {
+  const { parentUid, studentId } = request.data as { parentUid: string; studentId: string };
+  if (!parentUid || !studentId) {
+    throw new HttpsError('invalid-argument', 'Faltam dados.');
+  }
+  const studentSnap = await db.collection('students').doc(studentId).get();
+  if (!studentSnap.exists) throw new HttpsError('not-found', 'Aluno não encontrado.');
+  const schoolId = studentSnap.data()?.schoolId;
+
+  await db.collection('users').doc(parentUid).set({
+    studentIds: admin.firestore.FieldValue.arrayUnion(studentId),
+    schoolIds: admin.firestore.FieldValue.arrayUnion(schoolId),
+  }, { merge: true });
+
+  return { success: true };
 });

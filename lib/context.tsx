@@ -191,8 +191,8 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setStudents(firestoreStudents);
             const alunosConverted: Aluno[] = firestoreStudents.map((s) => ({
               ...s,
-              nome_completo: s.name,
-              turma_id: s.classId === '1a' ? 'turma_10a' : s.classId,
+              nome_completo: s.name || s.fullName || 'Aluno',
+              turma_id: s.classId === '1a' ? 'turma_10a' : (s.classId || 'turma_10a'),
               encarregado_id: 'user_pai_fernanda',
               foto_biometrica_url: s.photoUrl || '',
               guia_medica: s.guiaMedica || {
@@ -381,9 +381,9 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const newLog: AccessLog = {
       id: `log-${Date.now()}-${student.id}`,
       studentId: student.id,
-      studentName: student.name,
+      studentName: student.name || student.fullName || 'Aluno',
       studentPhoto: student.photoUrl || 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400',
-      className: student.className,
+      className: student.className || 'Turma A',
       schoolId: student.schoolId || 'school_horizonte_luanda',
       schoolName: student.schoolName || 'Colégio Horizonte de Luanda',
       type,
@@ -393,8 +393,8 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       method,
       receiptCode,
       notified: true,
-      notifiedRecipient: `${student.parentName} (${student.parentPhone})`,
-      statusNote: `${student.parentName.split(' ')[0]} Notificado via SMS / Push`,
+      notifiedRecipient: `${student.parentName || 'Encarregado'} (${student.parentPhone || 'SMS'})`,
+      statusNote: `${(student.parentName || 'Encarregado').split(' ')[0]} Notificado via SMS / Push`,
     };
 
     // 1. Write AccessLog to Firestore
@@ -462,6 +462,9 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       access_exit: 'Saída registrada',
       medical: 'Guia de Atendimento Médico',
       grade_approved: 'Mini Pauta e Notas Publicadas',
+      grade_published: 'Boletim de Notas Publicado',
+      mini_report_approved: 'Mini Pauta Homologada',
+      mini_report_rejected: 'Mini Pauta Devolvida para Ajuste',
     };
 
     const newNotif: SchoolNotification = {

@@ -35,9 +35,9 @@ export default function ProfessorTurmaPage() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       return (
-        student.name.toLowerCase().includes(q) ||
-        student.parentName.toLowerCase().includes(q) ||
-        student.matricula.toLowerCase().includes(q)
+        (student.name || student.fullName || '').toLowerCase().includes(q) ||
+        (student.parentName || '').toLowerCase().includes(q) ||
+        (student.matricula || '').toLowerCase().includes(q)
       );
     }
     return true;

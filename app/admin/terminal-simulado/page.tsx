@@ -212,7 +212,7 @@ export default function AdminTerminalSimuladoPage() {
                   <ScanFace className="w-5 h-5" />
                   <span>
                     Confirmar {accessType === 'entry' ? 'Entrada' : 'Saída'} de{' '}
-                    {currentStudent.name.split(' ')[0]}
+                    {currentStudent?.name ? currentStudent.name.split(' ')[0] : 'Aluno'}
                   </span>
                 </>
               )}

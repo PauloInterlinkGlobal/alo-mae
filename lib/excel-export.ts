@@ -106,8 +106,8 @@ export function exportClassExcel(classStat: ClassAttendanceStat, studentsInClass
       s.name,
       s.status === 'present' ? 'Presente' : s.status === 'late' ? 'Atraso' : 'Falta',
       s.lastEntryTime || '--:--',
-      s.parentName,
-      s.parentPhone,
+      s.parentName || '--',
+      s.parentPhone || '--',
     ]);
   });
 

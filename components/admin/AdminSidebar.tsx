@@ -12,6 +12,7 @@ import {
   School,
   ExternalLink,
   GraduationCap,
+  Users,
 } from 'lucide-react';
 
 export const AdminSidebar: React.FC = () => {
@@ -23,6 +24,12 @@ export const AdminSidebar: React.FC = () => {
       href: '/admin/dashboard',
       icon: LayoutDashboard,
       desc: 'KPIs, gráficos e feed em tempo real',
+    },
+    {
+      label: 'Gestão Escolar',
+      href: '/admin/gestao',
+      icon: Users,
+      desc: 'Turmas, alunos, docentes e encarregados',
     },
     {
       label: 'Mini Pautas',

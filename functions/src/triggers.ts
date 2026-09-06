@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
-import { AccessLogDoc, StudentDoc, GradeDoc } from './types';
+import { AccessLogDoc, StudentDoc, MiniPautaDoc } from './types';
 
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -34,12 +34,12 @@ export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async 
   const updateData: Partial<StudentDoc> = {
     status: newStatus,
     ...(type === 'entry' ? { lastEntryTime: timestamp } : { lastExitTime: timestamp }),
-    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 
   await studentRef.set(updateData, { merge: true });
 
-  // 2. Criar Notificação para o Encarregado com classId estável
+  // 2. Criar Notificação para o Encarregado
   const notificationId = `notif_${event.params.logId}`;
   const actionLabel = type === 'entry' ? 'Entrada confirmada na escola' : 'Saída registada da escola';
   const methodLabel = method === 'facial' ? 'Reconhecimento Facial' : method === 'fingerprint' ? 'Biometria Digital' : 'Registo Manual';
@@ -50,7 +50,7 @@ export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async 
     title: `${actionLabel} — ${studentName || studentData.name}`,
     subject: `Controlo de Acesso Biométrico (${methodLabel})`,
     message: `O aluno ${studentName || studentData.name} registou ${type === 'entry' ? 'entrada' : 'saída'} às ${new Date(timestamp).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })} no ponto "${location}". Comprovativo emitido com código ${receiptCode}.`,
-    studentId: studentId,
+    studentId,
     studentName: studentName || studentData.name,
     classId: effectiveClassId,
     className: studentData.className,
@@ -60,17 +60,17 @@ export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async 
     date: new Date(timestamp).toISOString().split('T')[0],
     time: new Date(timestamp).toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
     isRead: false,
-    receiptCode: receiptCode,
-    createdAt: admin.firestore.FieldValue.serverTimestamp()
+    receiptCode,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
   };
 
   await db.collection('notifications').doc(notificationId).set(notificationData);
 
-  // 3. Enviar notificação Push (FCM) ao encarregado
+  // 3. Notificar Encarregado via FCM Push
   try {
     const parentQuery = await db.collection('users')
       .where('role', '==', 'pai')
-      .where('childrenIds', 'array-contains', studentId)
+      .where('studentIds', 'array-contains', studentId)
       .get();
 
     for (const parentDoc of parentQuery.docs) {
@@ -82,15 +82,15 @@ export const onAccessLogCreated = onDocumentCreated('accessLogs/{logId}', async 
           tokens: fcmTokens,
           notification: {
             title: `Alô Mãe: ${actionLabel}`,
-            body: `${studentName || studentData.name} às ${notificationData.time} no ${location}.`
+            body: `${studentName || studentData.name} às ${notificationData.time} no ${location}.`,
           },
           data: {
             notificationId,
             studentId,
             classId: effectiveClassId,
             receiptCode: receiptCode || '',
-            type: notificationData.type
-          }
+            type: notificationData.type,
+          },
         });
       }
     }
@@ -122,22 +122,24 @@ export const recalculateClassStats = onDocumentWritten('students/{studentId}', a
     .get();
 
   const totalStudents = studentsInClassQuery.size;
-  if (totalStudents === 0) return;
 
   let presents = 0;
   let absents = 0;
   let lates = 0;
-  let className = afterData?.className || beforeData?.className || 'Turma';
 
   studentsInClassQuery.docs.forEach((doc) => {
     const s = doc.data() as StudentDoc;
     if (s.status === 'present') presents++;
     else if (s.status === 'absent') absents++;
     else if (s.status === 'late') lates++;
-    if (s.className) className = s.className;
   });
 
   const frequencyRate = totalStudents > 0 ? Number(((presents + lates) / totalStudents * 100).toFixed(1)) : 0;
+
+  // Carregar dados da turma na coleção 'classes'
+  const classRef = db.collection('classes').doc(classId);
+  const classSnap = await classRef.get();
+  const className = classSnap.exists ? classSnap.data()?.name || 'Turma' : 'Turma';
 
   const statRef = db.collection('classStats').doc(classId);
   const existingStatSnap = await statRef.get();
@@ -157,33 +159,31 @@ export const recalculateClassStats = onDocumentWritten('students/{studentId}', a
     monthlyAbsences: existingStat?.monthlyAbsences || 0,
     monthlyLates: existingStat?.monthlyLates || 0,
     frequencyRate,
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   }, { merge: true });
 });
 
 /**
- * Trigger: onGradeApproved
- * Executado quando o status de uma nota muda para 'approved'
- * Notifica o encarregado de educação e recalcula a média da turma
+ * Trigger: onMiniPautaApproved (v3)
+ * Executado quando o status de uma mini-pauta muda para 'approved'
+ * Notifica o encarregado de educação e recalcula a média da turma em classStats
  */
-export const onGradeApproved = onDocumentUpdated('grades/{gradeId}', async (event) => {
-  const beforeData = event.data?.before.data() as GradeDoc | undefined;
-  const afterData = event.data?.after.data() as GradeDoc | undefined;
+export const onMiniPautaApproved = onDocumentUpdated('miniPautas/{pautaId}', async (event) => {
+  const beforeData = event.data?.before.data() as MiniPautaDoc | undefined;
+  const afterData = event.data?.after.data() as MiniPautaDoc | undefined;
 
   if (!beforeData || !afterData) return;
 
-  // Apenas reagir se o status foi alterado para 'approved'
   if (beforeData.status !== 'approved' && afterData.status === 'approved') {
-    const { studentId, studentName, subject, grade, classId, schoolId, teacherName } = afterData;
+    const { studentId, studentName, period, average, classId, schoolId, professorName, grades } = afterData;
 
-    // 1. Criar notificação para o encarregado
-    const notifId = `notif_grade_${event.params.gradeId}`;
+    const notifId = `notif_pauta_${event.params.pautaId}`;
     const notificationData = {
       id: notifId,
       type: 'grade_approved',
-      title: `Boletim / Nota Homologada: ${subject}`,
-      subject: `Aprovação de Pauta Pedagógica — ${subject}`,
-      message: `A nota de ${studentName} na disciplina de ${subject} (${grade}/20 valores) foi homologada pela Direção Pedagógica. Lançada por: Prof. ${teacherName}.`,
+      title: `Boletim Homologado — ${studentName}`,
+      subject: `Mini-Pauta de Avaliação (${period})`,
+      message: `A mini-pauta do aluno ${studentName} referente ao ${period} foi homologada com média de ${average.toFixed(1)} valores. Professor responsável: ${professorName}.`,
       studentId,
       studentName,
       classId,
@@ -193,16 +193,16 @@ export const onGradeApproved = onDocumentUpdated('grades/{gradeId}', async (even
       date: new Date().toISOString().split('T')[0],
       time: new Date().toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' }),
       isRead: false,
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     };
 
     await db.collection('notifications').doc(notifId).set(notificationData);
 
-    // 2. Enviar Push Notification aos Encarregados
+    // Enviar push notification aos encarregados
     try {
       const parentQuery = await db.collection('users')
         .where('role', '==', 'pai')
-        .where('childrenIds', 'array-contains', studentId)
+        .where('studentIds', 'array-contains', studentId)
         .get();
 
       for (const parentDoc of parentQuery.docs) {
@@ -213,40 +213,40 @@ export const onGradeApproved = onDocumentUpdated('grades/{gradeId}', async (even
           await messaging.sendEachForMulticast({
             tokens: fcmTokens,
             notification: {
-              title: `Alô Mãe: Nota Homologada (${subject})`,
-              body: `${studentName} obteve ${grade}/20 valores em ${subject}.`
+              title: `Alô Mãe: Boletim Homologado`,
+              body: `${studentName} — Média final: ${average.toFixed(1)} valores (${period}).`,
             },
             data: {
               notificationId: notifId,
               studentId,
               classId,
-              type: 'grade_approved'
-            }
+              type: 'grade_approved',
+            },
           });
         }
       }
     } catch (pushErr) {
-      console.error('Erro ao enviar FCM de nota aprovada:', pushErr);
+      console.error('Erro ao enviar FCM de mini-pauta aprovada:', pushErr);
     }
 
-    // 3. Recalcular média geral da turma (averageGrade) em classStats
+    // Recalcular média geral da turma em classStats
     try {
-      const classGradesQuery = await db.collection('grades')
+      const classPautasQuery = await db.collection('miniPautas')
         .where('classId', '==', classId)
         .where('status', '==', 'approved')
         .get();
 
-      if (!classGradesQuery.empty) {
-        let totalScore = 0;
-        classGradesQuery.docs.forEach(doc => {
-          const g = doc.data() as GradeDoc;
-          totalScore += Number(g.grade) || 0;
+      if (!classPautasQuery.empty) {
+        let totalAvg = 0;
+        classPautasQuery.docs.forEach((doc) => {
+          const p = doc.data() as MiniPautaDoc;
+          totalAvg += Number(p.average) || 0;
         });
 
-        const averageGrade = Number((totalScore / classGradesQuery.size).toFixed(1));
+        const classAverage = Number((totalAvg / classPautasQuery.size).toFixed(1));
         await db.collection('classStats').doc(classId).set({
-          averageGrade,
-          updatedAt: new Date().toISOString()
+          averageGrade: classAverage,
+          updatedAt: new Date().toISOString(),
         }, { merge: true });
       }
     } catch (statErr) {
@@ -254,3 +254,6 @@ export const onGradeApproved = onDocumentUpdated('grades/{gradeId}', async (even
     }
   }
 });
+
+// Compatibilidade
+export const onGradeApproved = onMiniPautaApproved;

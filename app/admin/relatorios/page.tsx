@@ -31,11 +31,15 @@ export default function AdminRelatoriosPage() {
     if (selectedClassFilter !== 'all' && s.classId !== selectedClassFilter) return false;
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
+      const studentName = (s.fullName || s.name || s.nome_completo || '').toLowerCase();
+      const studentMatricula = (s.matricula || '').toLowerCase();
+      const parentName = (s.parentName || '').toLowerCase();
+      const className = (s.className || '').toLowerCase();
       return (
-        s.name.toLowerCase().includes(q) ||
-        s.matricula.toLowerCase().includes(q) ||
-        s.parentName.toLowerCase().includes(q) ||
-        s.className.toLowerCase().includes(q)
+        studentName.includes(q) ||
+        studentMatricula.includes(q) ||
+        parentName.includes(q) ||
+        className.includes(q)
       );
     }
     return true;

@@ -2,11 +2,24 @@ export type UserRole = 'pai' | 'professor' | 'instituicao' | 'terminal' | 'admin
 
 export interface CustomClaims {
   role: UserRole;
-  schoolId: string;
+  schoolId?: string;
+  schoolIds?: string[];
   studentIds?: string[];
   studentId?: string;
   classIds?: string[];
   assignedClassIds?: string[];
+  [key: string]: any;
+}
+
+export interface SchoolClass {
+  id: string;
+  name: string;
+  schoolId: string;
+  teacherIds: string[];
+  studentCount: number;
+  active?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
 }
 
 export interface StudentDoc {
@@ -14,9 +27,10 @@ export interface StudentDoc {
   matricula: string;
   name: string;
   classId: string;
-  className: string;
+  className?: string;
   schoolId: string;
   schoolName?: string;
+  parentUid?: string;
   parentName: string;
   parentPhone: string;
   parentEmail: string;
@@ -25,7 +39,7 @@ export interface StudentDoc {
   lastEntryTime?: string;
   lastExitTime?: string;
   biometricCode: string;
-  insurancePolicyId: string;
+  insurancePolicyId?: string;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -51,44 +65,29 @@ export interface AccessLogDoc {
   createdAt?: any;
 }
 
-export interface GradeDoc {
+export interface Grade {
+  subject: string;
+  score: number;
+}
+
+export interface MiniPautaDoc {
   id: string;
   studentId: string;
   studentName: string;
   classId: string;
-  className: string;
-  subject: string;
-  teacherId: string;
-  teacherName: string;
-  grade: number;
-  feedback?: string;
-  status: 'draft' | 'pending_approval' | 'approved' | 'rejected';
+  className?: string;
   schoolId: string;
-  approvedBy?: string;
+  professorId: string;
+  professorName: string;
+  period: string;
+  grades: Grade[];
+  average: number;
+  status: 'draft' | 'submitted' | 'approved' | 'rejected';
+  submittedAt?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
+  reviewNote?: string;
   createdAt?: any;
-  updatedAt?: any;
-  trimestre?: number;
-  mac?: number;
-  npp?: number;
-  npt?: number;
-}
-
-export interface StudentMedicalDoc {
-  studentId: string;
-  studentName: string;
-  classId: string;
-  schoolId: string;
-  insurancePolicyId: string;
-  insuranceProvider: string;
-  policyType: 'basic' | 'comprehensive' | 'hospital' | 'other';
-  coverage: string[];
-  validityStart: string;
-  validityEnd: string;
-  emergencyPhone: string;
-  emergencyContactName: string;
-  allergies?: string[];
-  chronicConditions?: string[];
-  notes?: string;
   updatedAt?: any;
 }
 
@@ -100,6 +99,7 @@ export interface NotificationDoc {
   message: string;
   studentId?: string;
   studentName?: string;
+  classId?: string;
   className?: string;
   schoolId: string;
   senderName: string;
