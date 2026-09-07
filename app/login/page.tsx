@@ -293,44 +293,46 @@ export default function LoginPage() {
 
       {/* Password Reset Modal */}
       {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-900 animate-in fade-in zoom-in-95">
-            <h3 className="font-['Poppins',sans-serif] font-bold text-base text-[#0D1B3D] mb-1">
-              Recuperar Palavra-passe
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Introduza o seu e-mail registado para receber um link de redefinição de palavra-passe.
-            </p>
+        <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs overflow-y-auto">
+          <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable w-[95%] max-w-[95vw] sm:max-w-sm my-auto">
+            <div className="modal-content bg-white rounded-2xl sm:rounded-3xl p-5 sm:p-6 w-full shadow-2xl text-slate-900 border border-slate-100 flex flex-col max-h-[92dvh] sm:max-h-[85vh] overflow-y-auto custom-scrollbar">
+              <h3 className="font-['Poppins',sans-serif] font-bold text-base sm:text-lg text-[#0D1B3D] mb-1">
+                Recuperar Palavra-passe
+              </h3>
+              <p className="text-xs text-slate-500 mb-4">
+                Introduza o seu e-mail registado para receber um link de redefinição de palavra-passe.
+              </p>
 
-            <form onSubmit={handleSendResetPassword} className="space-y-3">
-              <div>
-                <input
-                  type="email"
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  placeholder="seu.email@escola.ao"
-                  required
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B]"
-                />
-              </div>
+              <form onSubmit={handleSendResetPassword} className="space-y-3.5">
+                <div>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="seu.email@escola.ao"
+                    required
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#143A7B]"
+                  />
+                </div>
 
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowResetModal(false)}
-                  className="flex-1 py-2.5 px-3 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSendingReset}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-[#143A7B] text-white text-xs font-semibold hover:bg-[#0D1B3D] disabled:opacity-50 cursor-pointer"
-                >
-                  {isSendingReset ? 'A enviar...' : 'Enviar Link'}
-                </button>
-              </div>
-            </form>
+                <div className="modal-footer flex flex-col-reverse sm:flex-row gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetModal(false)}
+                    className="w-full sm:flex-1 min-h-[44px] py-2.5 px-3 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSendingReset}
+                    className="w-full sm:flex-1 min-h-[44px] py-2.5 px-3 rounded-xl bg-[#143A7B] text-white text-xs font-semibold hover:bg-[#0D1B3D] disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    {isSendingReset ? 'A enviar...' : 'Enviar Link'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

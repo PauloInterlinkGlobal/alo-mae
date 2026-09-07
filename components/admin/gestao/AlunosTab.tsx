@@ -367,288 +367,295 @@ export const AlunosTab: React.FC = () => {
 
       {/* Modal Matricular Aluno (enrollStudent) */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 my-8">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-blue-50 text-[#143A7B]">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Nova Matrícula Escolar (enrollStudent)
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Registo unificado de aluno, biometria e vinculação do encarregado
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleEnrollSubmit} className="mt-5 space-y-6">
-              {/* Secção 1: Dados do Aluno */}
-              <div>
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#143A7B]" />
-                  1. Dados do Aluno
-                </h4>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="modal-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable w-[95%] max-w-[95vw] sm:max-w-2xl my-auto">
+            <div className="modal-content bg-white rounded-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88vh]">
+              {/* Modal Header */}
+              <div className="modal-header flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-blue-50 text-[#143A7B] shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nome Completo do Aluno *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: Lucas Kiala Silva"
-                      value={studentForm.name}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setStudentForm(prev => ({
-                          ...prev,
-                          name: val,
-                          biometricCode: generateBiometricCode(val),
-                        }));
-                      }}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nº de Matrícula *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Ex: 2026-00892"
-                      value={studentForm.matricula}
-                      onChange={(e) => setStudentForm({ ...studentForm, matricula: e.target.value })}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-[#143A7B]"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Turma Atribuída (classes) *</label>
-                    <select
-                      required
-                      value={studentForm.classId}
-                      onChange={(e) => setStudentForm({ ...studentForm, classId: e.target.value })}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-[#143A7B]"
-                    >
-                      {classes.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} ({c.studentCount || 0} alunos)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">Apólice de Seguro Escolar 24h</label>
-                    <select
-                      value={studentForm.insurancePolicyId}
-                      onChange={(e) => setStudentForm({ ...studentForm, insurancePolicyId: e.target.value })}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
-                    >
-                      <option value="SEG-ALO-2024-8821">ENSA - Cobertura Escolar Total 24h (Plano A)</option>
-                      <option value="SEG-ALO-2024-5510">Sanlam Angola - Seguro de Acidentes Pessoais</option>
-                      <option value="SEG-ALO-2024-3320">Fidelidade - Guia Médica Hospitalar</option>
-                    </select>
-                  </div>
-
-                  <div className="md:col-span-2">
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">URL da Foto Facial (Biometria)</label>
-                    <input
-                      type="text"
-                      placeholder="https://..."
-                      value={studentForm.photoUrl}
-                      onChange={(e) => setStudentForm({ ...studentForm, photoUrl: e.target.value })}
-                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
-                    />
-                  </div>
-
-                  {/* Código Biométrico Read-Only */}
-                  <div className="md:col-span-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700">
-                        <Fingerprint className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <span className="text-[11px] font-bold text-slate-800">Token Biométrico Gerado (Read-Only)</span>
-                        <p className="text-[10px] text-slate-500">
-                          Código gerado pelo sistema para o quiosque; nunca editável manualmente.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
-                        {studentForm.biometricCode || 'GERAR CÓDIGO'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setStudentForm(prev => ({ ...prev, biometricCode: generateBiometricCode(prev.name || 'ALUNO') }))}
-                        className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-white rounded-lg transition-colors border border-slate-200"
-                        title="Regenerar Token"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Secção 2: Encarregado de Educação */}
-              <div className="pt-5 border-t border-slate-100">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    2. Encarregado de Educação (Pesquisa & Vinculação)
-                  </h4>
-                  <span className="text-[10px] text-slate-400">Regra de ouro: Vinculação feita sempre a partir do aluno</span>
-                </div>
-
-                {/* Search Box */}
-                <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 mb-3.5 space-y-2">
-                  <p className="text-[11px] text-slate-600">
-                    Pesquise pelo <strong>Email</strong> ou <strong>Telefone</strong> do encarregado para verificar se já possui conta (mesmo noutra escola):
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Ex: fernanda.silva@email.com ou +244 923 884 912"
-                      value={parentSearchInput}
-                      onChange={(e) => setParentSearchInput(e.target.value)}
-                      className="flex-1 px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSearchParent}
-                      disabled={isSearchingParent || !parentSearchInput.trim()}
-                      className="bg-[#143A7B] text-white text-xs font-semibold px-4 py-2 rounded-xl flex items-center gap-1.5 hover:bg-blue-800 disabled:opacity-50 transition-colors"
-                    >
-                      {isSearchingParent ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                      <span>Pesquisar</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Case A: Pai Encontrado */}
-                {foundParent ? (
-                  <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-4 flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                        <UserCheck className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-emerald-950">{foundParent.name}</span>
-                          <span className="bg-emerald-200/80 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
-                            Conta Existente
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-emerald-800 mt-0.5">{foundParent.email} • {foundParent.phone}</p>
-                        {foundParent.schoolIds && foundParent.schoolIds.length > 1 && (
-                          <p className="text-[10px] text-emerald-700 mt-1 flex items-center gap-1">
-                            <Building2 className="w-3 h-3" />
-                            <span>Encarregado com filhos em {foundParent.schoolIds.length} escolas diferentes (Multi-escola suportado).</span>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFoundParent(null);
-                        setParentSearchInput('');
-                      }}
-                      className="text-emerald-700 hover:text-emerald-900 text-xs font-semibold p-1 hover:bg-emerald-100 rounded-lg"
-                      title="Desvincular e escolher outro"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ) : (
-                  /* Case B: Não Encontrado -> Criar Novo Pai */
-                  <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-4 space-y-3">
-                    <div className="flex items-center gap-2 text-slate-700">
-                      <Sparkles className="w-4 h-4 text-blue-600" />
-                      <span className="text-xs font-bold">Cadastrar Novo Encarregado de Educação</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      O encarregado não foi encontrado na base de dados. Será criada uma conta no Firebase Auth com as credenciais enviadas por SMS/Email.
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                      Nova Matrícula Escolar (enrollStudent)
+                    </h3>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500">
+                      Registo unificado de aluno, biometria e vinculação do encarregado
                     </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+                  aria-label="Fechar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <form onSubmit={handleEnrollSubmit} className="flex flex-col flex-1 overflow-hidden">
+                {/* Modal Body */}
+                <div className="modal-body p-4 sm:p-6 overflow-y-auto flex-1 custom-scrollbar space-y-6">
+                  {/* Secção 1: Dados do Aluno */}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#143A7B]" />
+                      1. Dados do Aluno
+                    </h4>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nome do Encarregado *</label>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nome Completo do Aluno *</label>
                         <input
                           type="text"
-                          required={!foundParent}
-                          placeholder="Ex: Fernanda Silva"
-                          value={newParentForm.name}
-                          onChange={(e) => setNewParentForm({ ...newParentForm, name: e.target.value })}
-                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                          required
+                          placeholder="Ex: Lucas Kiala Silva"
+                          value={studentForm.name}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setStudentForm(prev => ({
+                              ...prev,
+                              name: val,
+                              biometricCode: generateBiometricCode(val),
+                            }));
+                          }}
+                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
                         />
                       </div>
+
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Email *</label>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nº de Matrícula *</label>
                         <input
-                          type="email"
-                          required={!foundParent}
-                          placeholder="fernanda@email.com"
-                          value={newParentForm.email}
-                          onChange={(e) => setNewParentForm({ ...newParentForm, email: e.target.value })}
-                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                          type="text"
+                          required
+                          placeholder="Ex: 2026-00892"
+                          value={studentForm.matricula}
+                          onChange={(e) => setStudentForm({ ...studentForm, matricula: e.target.value })}
+                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono focus:ring-2 focus:ring-[#143A7B]"
                         />
                       </div>
+
                       <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Telefone Principal *</label>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Turma Atribuída (classes) *</label>
+                        <select
+                          required
+                          value={studentForm.classId}
+                          onChange={(e) => setStudentForm({ ...studentForm, classId: e.target.value })}
+                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium focus:ring-2 focus:ring-[#143A7B]"
+                        >
+                          {classes.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} ({c.studentCount || 0} alunos)
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">Apólice de Seguro Escolar 24h</label>
+                        <select
+                          value={studentForm.insurancePolicyId}
+                          onChange={(e) => setStudentForm({ ...studentForm, insurancePolicyId: e.target.value })}
+                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
+                        >
+                          <option value="SEG-ALO-2024-8821">ENSA - Cobertura Escolar Total 24h (Plano A)</option>
+                          <option value="SEG-ALO-2024-5510">Sanlam Angola - Seguro de Acidentes Pessoais</option>
+                          <option value="SEG-ALO-2024-3320">Fidelidade - Guia Médica Hospitalar</option>
+                        </select>
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">URL da Foto Facial (Biometria)</label>
                         <input
-                          type="tel"
-                          required={!foundParent}
-                          placeholder="+244 923 884 912"
-                          value={newParentForm.phone}
-                          onChange={(e) => setNewParentForm({ ...newParentForm, phone: e.target.value })}
-                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                          type="text"
+                          placeholder="https://..."
+                          value={studentForm.photoUrl}
+                          onChange={(e) => setStudentForm({ ...studentForm, photoUrl: e.target.value })}
+                          className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
                         />
+                      </div>
+
+                      {/* Código Biométrico Read-Only */}
+                      <div className="sm:col-span-2 bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700 shrink-0">
+                            <Fingerprint className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <span className="text-[11px] font-bold text-slate-800">Token Biométrico Gerado (Read-Only)</span>
+                            <p className="text-[10px] text-slate-500">
+                              Código gerado pelo sistema para o quiosque; nunca editável manualmente.
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
+                          <span className="font-mono text-xs font-bold text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs">
+                            {studentForm.biometricCode || 'GERAR CÓDIGO'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setStudentForm(prev => ({ ...prev, biometricCode: generateBiometricCode(prev.name || 'ALUNO') }))}
+                            className="p-1.5 text-slate-500 hover:text-blue-700 hover:bg-white rounded-lg transition-colors border border-slate-200 cursor-pointer"
+                            title="Regenerar Token"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
 
-              {/* Botões do Formulário */}
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-6 py-2.5 rounded-xl text-xs font-semibold bg-[#143A7B] text-white hover:bg-blue-800 transition-colors shadow-xs disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isSaving ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                      <span>A processar matrícula...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>Concluir Matrícula (enrollStudent)</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
+                  {/* Secção 2: Encarregado de Educação */}
+                  <div className="pt-5 border-t border-slate-100">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-3">
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        2. Encarregado de Educação (Pesquisa & Vinculação)
+                      </h4>
+                      <span className="text-[10px] text-slate-400">Regra de ouro: Vinculação feita sempre a partir do aluno</span>
+                    </div>
+
+                    {/* Search Box */}
+                    <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-200 mb-3.5 space-y-2">
+                      <p className="text-[11px] text-slate-600">
+                        Pesquise pelo <strong>Email</strong> ou <strong>Telefone</strong> do encarregado para verificar se já possui conta (mesmo noutra escola):
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          placeholder="Ex: fernanda.silva@email.com ou +244 923 884 912"
+                          value={parentSearchInput}
+                          onChange={(e) => setParentSearchInput(e.target.value)}
+                          className="flex-1 px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSearchParent}
+                          disabled={isSearchingParent || !parentSearchInput.trim()}
+                          className="bg-[#143A7B] text-white text-xs font-semibold px-4 py-2 min-h-[40px] rounded-xl flex items-center justify-center gap-1.5 hover:bg-blue-800 disabled:opacity-50 transition-colors cursor-pointer"
+                        >
+                          {isSearchingParent ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                          <span>Pesquisar</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Case A: Pai Encontrado */}
+                    {foundParent ? (
+                      <div className="bg-emerald-50/80 border border-emerald-200 rounded-xl p-3 sm:p-4 flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0">
+                            <UserCheck className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-xs font-bold text-emerald-950">{foundParent.name}</span>
+                              <span className="bg-emerald-200/80 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                Conta Existente
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-emerald-800 mt-0.5 break-all">{foundParent.email} • {foundParent.phone}</p>
+                            {foundParent.schoolIds && foundParent.schoolIds.length > 1 && (
+                              <p className="text-[10px] text-emerald-700 mt-1 flex items-center gap-1">
+                                <Building2 className="w-3 h-3" />
+                                <span>Encarregado com filhos em {foundParent.schoolIds.length} escolas diferentes (Multi-escola suportado).</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFoundParent(null);
+                            setParentSearchInput('');
+                          }}
+                          className="text-emerald-700 hover:text-emerald-900 text-xs font-semibold p-1 hover:bg-emerald-100 rounded-lg shrink-0"
+                          title="Desvincular e escolher outro"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      /* Case B: Não Encontrado -> Criar Novo Pai */
+                      <div className="bg-slate-50/70 border border-slate-200 rounded-xl p-3 sm:p-4 space-y-3">
+                        <div className="flex items-center gap-2 text-slate-700">
+                          <Sparkles className="w-4 h-4 text-blue-600" />
+                          <span className="text-xs font-bold">Cadastrar Novo Encarregado de Educação</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500">
+                          O encarregado não foi encontrado na base de dados. Será criada uma conta no Firebase Auth com as credenciais enviadas por SMS/Email.
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Nome do Encarregado *</label>
+                            <input
+                              type="text"
+                              required={!foundParent}
+                              placeholder="Ex: Fernanda Silva"
+                              value={newParentForm.name}
+                              onChange={(e) => setNewParentForm({ ...newParentForm, name: e.target.value })}
+                              className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Email *</label>
+                            <input
+                              type="email"
+                              required={!foundParent}
+                              placeholder="fernanda@email.com"
+                              value={newParentForm.email}
+                              onChange={(e) => setNewParentForm({ ...newParentForm, email: e.target.value })}
+                              className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[11px] font-semibold text-slate-700 mb-1">Telefone Principal *</label>
+                            <input
+                              type="tel"
+                              required={!foundParent}
+                              placeholder="+244 923 884 912"
+                              value={newParentForm.phone}
+                              onChange={(e) => setNewParentForm({ ...newParentForm, phone: e.target.value })}
+                              className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-xl"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="modal-footer flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50/70 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="w-full sm:w-auto min-h-[44px] px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="w-full sm:w-auto min-h-[44px] px-6 py-2.5 rounded-xl text-xs font-semibold bg-[#143A7B] text-white hover:bg-blue-800 transition-colors shadow-xs disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    {isSaving ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>A processar matrícula...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Concluir Matrícula (enrollStudent)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}

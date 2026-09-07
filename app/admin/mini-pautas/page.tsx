@@ -193,89 +193,92 @@ export default function AdminMiniPautasPage() {
 
       {/* Detail Modal */}
       {selectedPauta && !rejectionModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-hidden flex flex-col border border-slate-200">
-            {/* Modal Header */}
-            <div className="p-6 border-b border-slate-100 bg-[#0D1B3D] text-white flex items-center justify-between">
-              <div>
-                <h3 className="font-['Poppins',sans-serif] font-bold text-lg">
-                  {selectedPauta.disciplina} — {selectedPauta.turma_nome || selectedPauta.turma_id}
-                </h3>
-                <p className="text-xs text-blue-200">
-                  {selectedPauta.trimestre}º Trimestre • Professor: {selectedPauta.professor_nome || 'Docente'}
-                </p>
+        <div className="modal-backdrop fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable w-[95%] max-w-[95vw] sm:max-w-2xl my-auto">
+            <div className="modal-content bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full max-h-[92dvh] sm:max-h-[85vh] overflow-hidden flex flex-col border border-slate-200">
+              {/* Modal Header */}
+              <div className="modal-header p-4 sm:p-6 border-b border-slate-100 bg-[#0D1B3D] text-white flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="font-['Poppins',sans-serif] font-bold text-base sm:text-lg leading-tight">
+                    {selectedPauta.disciplina} — {selectedPauta.turma_nome || selectedPauta.turma_id}
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-blue-200 mt-0.5">
+                    {selectedPauta.trimestre}º Trimestre • Professor: {selectedPauta.professor_nome || 'Docente'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedPauta(null)}
+                  className="text-slate-400 hover:text-white p-2 rounded-xl text-lg leading-none cursor-pointer"
+                  aria-label="Fechar"
+                >
+                  ✕
+                </button>
               </div>
-              <button
-                onClick={() => setSelectedPauta(null)}
-                className="text-slate-400 hover:text-white p-2 rounded-xl"
-              >
-                ✕
-              </button>
-            </div>
 
-            {/* Modal Table */}
-            <div className="p-6 overflow-y-auto flex-1">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="px-4 py-3">Aluno</th>
-                    <th className="px-3 py-3 text-center">MAC</th>
-                    <th className="px-3 py-3 text-center">NPP</th>
-                    <th className="px-3 py-3 text-center">NPT</th>
-                    <th className="px-4 py-3 text-center">Média Final</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {selectedPauta.notas?.map((n) => (
-                    <tr key={n.aluno_id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 font-semibold text-slate-900">
-                        {n.aluno_nome || n.aluno_id}
-                      </td>
-                      <td className="px-3 py-3 text-center font-mono text-slate-700">{n.mac}</td>
-                      <td className="px-3 py-3 text-center font-mono text-slate-700">{n.npp}</td>
-                      <td className="px-3 py-3 text-center font-mono text-slate-700">{n.npt}</td>
-                      <td className="px-4 py-3 text-center font-bold font-mono">
-                        <span
-                          className={`px-2.5 py-0.5 rounded-lg ${
-                            n.media_final >= 10
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}
-                        >
-                          {n.media_final.toFixed(1)}
-                        </span>
-                      </td>
+              {/* Modal Table Body */}
+              <div className="modal-body p-3 sm:p-6 overflow-y-auto flex-1 custom-scrollbar overflow-x-auto">
+                <table className="w-full text-left text-xs min-w-[340px]">
+                  <thead className="bg-slate-50 text-slate-500 uppercase tracking-wider font-semibold border-b border-slate-200">
+                    <tr>
+                      <th className="px-3 sm:px-4 py-3">Aluno</th>
+                      <th className="px-2 sm:px-3 py-3 text-center">MAC</th>
+                      <th className="px-2 sm:px-3 py-3 text-center">NPP</th>
+                      <th className="px-2 sm:px-3 py-3 text-center">NPT</th>
+                      <th className="px-3 sm:px-4 py-3 text-center">Média Final</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedPauta.notas?.map((n) => (
+                      <tr key={n.aluno_id} className="hover:bg-slate-50">
+                        <td className="px-3 sm:px-4 py-3 font-semibold text-slate-900">
+                          {n.aluno_nome || n.aluno_id}
+                        </td>
+                        <td className="px-2 sm:px-3 py-3 text-center font-mono text-slate-700">{n.mac}</td>
+                        <td className="px-2 sm:px-3 py-3 text-center font-mono text-slate-700">{n.npp}</td>
+                        <td className="px-2 sm:px-3 py-3 text-center font-mono text-slate-700">{n.npt}</td>
+                        <td className="px-3 sm:px-4 py-3 text-center font-bold font-mono">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-lg text-[11px] ${
+                              n.media_final >= 10
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}
+                          >
+                            {n.media_final.toFixed(1)}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-            {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setSelectedPauta(null)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
-              >
-                Fechar
-              </button>
+              {/* Modal Footer */}
+              <div className="modal-footer p-3.5 sm:p-4 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
+                <button
+                  onClick={() => setSelectedPauta(null)}
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-200/60 transition-colors cursor-pointer"
+                >
+                  Fechar
+                </button>
 
-              {selectedPauta.status === 'submetida' && (
-                <>
-                  <button
-                    onClick={() => handleOpenReject(selectedPauta)}
-                    className="px-4 py-2 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-xl hover:bg-rose-100"
-                  >
-                    Rejeitar / Ajustes
-                  </button>
-                  <button
-                    onClick={() => handleApprove(selectedPauta)}
-                    className="px-4 py-2 text-xs font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm"
-                  >
-                    Homologar & Publicar
-                  </button>
-                </>
-              )}
+                {selectedPauta.status === 'submetida' && (
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={() => handleOpenReject(selectedPauta)}
+                      className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 rounded-xl hover:bg-rose-100 transition-colors cursor-pointer"
+                    >
+                      Rejeitar / Ajustes
+                    </button>
+                    <button
+                      onClick={() => handleApprove(selectedPauta)}
+                      className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-xs font-semibold bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 shadow-sm transition-colors cursor-pointer"
+                    >
+                      Homologar & Publicar
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -283,40 +286,42 @@ export default function AdminMiniPautasPage() {
 
       {/* Rejection Modal */}
       {rejectionModalOpen && selectedPauta && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200 animate-scale-in">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mb-4">
-              <AlertTriangle className="w-6 h-6" />
-            </div>
+        <div className="modal-backdrop fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable w-[95%] max-w-[95vw] sm:max-w-md my-auto">
+            <div className="modal-content bg-white rounded-2xl sm:rounded-3xl shadow-2xl w-full p-4 sm:p-6 border border-slate-200 animate-scale-in flex flex-col max-h-[92dvh] sm:max-h-[85vh] overflow-y-auto custom-scrollbar">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mb-4 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
 
-            <h3 className="font-['Poppins',sans-serif] font-bold text-lg text-slate-900 mb-1">
-              Devolver Mini Pauta para Correção
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Indique o motivo pedagógico ou os campos que o docente precisará ajustar.
-            </p>
+              <h3 className="font-['Poppins',sans-serif] font-bold text-base sm:text-lg text-slate-900 mb-1">
+                Devolver Mini Pauta para Correção
+              </h3>
+              <p className="text-xs text-slate-500 mb-4">
+                Indique o motivo pedagógico ou os campos que o docente precisará ajustar.
+              </p>
 
-            <textarea
-              rows={3}
-              value={motivoRejeicao}
-              onChange={(e) => setMotivoRejeicao(e.target.value)}
-              placeholder="Ex: Verificar notas da Prova Trimestral (NPT) do aluno Lucas Silva..."
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-rose-500 mb-4"
-            />
+              <textarea
+                rows={3}
+                value={motivoRejeicao}
+                onChange={(e) => setMotivoRejeicao(e.target.value)}
+                placeholder="Ex: Verificar notas da Prova Trimestral (NPT) do aluno Lucas Silva..."
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:ring-2 focus:ring-rose-500 mb-4 focus:outline-hidden"
+              />
 
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setRejectionModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmReject}
-                className="px-4 py-2 text-xs font-semibold bg-rose-600 text-white rounded-xl hover:bg-rose-700 shadow-sm"
-              >
-                Confirmar Rejeição
-              </button>
+              <div className="modal-footer flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setRejectionModalOpen(false)}
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmReject}
+                  className="w-full sm:w-auto min-h-[44px] px-4 py-2 text-xs font-semibold bg-rose-600 text-white rounded-xl hover:bg-rose-700 shadow-sm transition-colors cursor-pointer"
+                >
+                  Confirmar Rejeição
+                </button>
+              </div>
             </div>
           </div>
         </div>

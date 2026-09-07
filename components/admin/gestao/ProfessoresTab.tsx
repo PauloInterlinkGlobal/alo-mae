@@ -264,124 +264,132 @@ export const ProfessoresTab: React.FC = () => {
 
       {/* Modal Criar / Editar Docente */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700">
-                  <GraduationCap className="w-5 h-5" />
+        <div className="modal-backdrop fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+          <div className="modal-dialog modal-dialog-centered modal-dialog-scrollable w-[95%] max-w-[95vw] sm:max-w-lg my-auto">
+            <div className="modal-content bg-white rounded-2xl w-full shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92dvh] sm:max-h-[88vh]">
+              {/* Modal Header */}
+              <div className="modal-header flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-lg bg-indigo-50 text-indigo-700 shrink-0">
+                    <GraduationCap className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                      {editingTeacher ? 'Editar Docente' : 'Cadastrar Docente (enrollTeacher)'}
+                    </h3>
+                    <p className="text-[10px] sm:text-[11px] text-slate-500">
+                      Registo de professor com atribuição de turmas na escola atual
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    {editingTeacher ? 'Editar Docente' : 'Cadastrar Docente (enrollTeacher)'}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Registo de professor com atribuição de turmas na escola atual
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsModalOpen(false)}
-                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSave} className="mt-5 space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Ex: Prof. Manuel Domingos"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Email Institucional *</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="manuel@alo-mae.co.ao"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">Telefone Principal</label>
-                  <input
-                    type="tel"
-                    placeholder="+244 923 000 000"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Cargo / Especialidade</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Coordenador Pedagógico / Matemática"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Turmas Atribuídas (multi-select) *</label>
-                <p className="text-[11px] text-slate-500 mb-2">
-                  Selecione as turmas que este professor leciona:
-                </p>
-                <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5 bg-slate-50">
-                  {classes.map((c) => {
-                    const selected = formData.classIds.includes(c.id);
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => toggleClass(c.id)}
-                        className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs transition-colors ${
-                          selected
-                            ? 'bg-[#143A7B] text-white font-medium'
-                            : 'bg-white text-slate-700 hover:bg-slate-100'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <School className="w-3.5 h-3.5 text-blue-400" />
-                          <span>{c.name}</span>
-                        </div>
-                        <span className="text-[10px] opacity-80">{c.studentCount || 0} alunos</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
-                  type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+                  aria-label="Fechar"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#143A7B] text-white hover:bg-blue-800 disabled:opacity-50"
-                >
-                  {isSaving ? 'A registar...' : editingTeacher ? 'Atualizar Docente' : 'Concluir Registo (enrollTeacher)'}
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+
+              <form onSubmit={handleSave} className="flex flex-col flex-1 overflow-hidden">
+                {/* Modal Body */}
+                <div className="modal-body p-4 sm:p-6 overflow-y-auto flex-1 custom-scrollbar space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Nome Completo *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Ex: Prof. Manuel Domingos"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Email Institucional *</label>
+                      <input
+                        type="email"
+                        required
+                        placeholder="manuel@alo-mae.co.ao"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">Telefone Principal</label>
+                      <input
+                        type="tel"
+                        placeholder="+244 923 000 000"
+                        value={formData.phone}
+                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Cargo / Especialidade</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Coordenador Pedagógico / Matemática"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-[#143A7B]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Turmas Atribuídas (multi-select) *</label>
+                    <p className="text-[11px] text-slate-500 mb-2">
+                      Selecione as turmas que este professor leciona:
+                    </p>
+                    <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-xl p-2.5 space-y-1.5 bg-slate-50">
+                      {classes.map((c) => {
+                        const selected = formData.classIds.includes(c.id);
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => toggleClass(c.id)}
+                            className={`flex items-center justify-between p-2 rounded-lg cursor-pointer text-xs transition-colors ${
+                              selected
+                                ? 'bg-[#143A7B] text-white font-medium'
+                                : 'bg-white text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <School className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                              <span className="truncate">{c.name}</span>
+                            </div>
+                            <span className="text-[10px] opacity-80 shrink-0">{c.studentCount || 0} alunos</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Footer */}
+                <div className="modal-footer flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 p-3.5 sm:p-4 border-t border-slate-100 bg-slate-50/70 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsModalOpen(false)}
+                    className="w-full sm:w-auto min-h-[44px] px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200/60 transition-colors cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="w-full sm:w-auto min-h-[44px] px-5 py-2 rounded-xl text-xs font-semibold bg-[#143A7B] text-white hover:bg-blue-800 disabled:opacity-50 transition-colors cursor-pointer"
+                  >
+                    {isSaving ? 'A registar...' : editingTeacher ? 'Atualizar Docente' : 'Concluir Registo (enrollTeacher)'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
