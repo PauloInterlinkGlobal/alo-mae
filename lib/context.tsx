@@ -489,6 +489,12 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       grade_published: 'Boletim de Notas Publicado',
       mini_report_approved: 'Mini Pauta Homologada',
       mini_report_rejected: 'Mini Pauta Devolvida para Ajuste',
+      teacher_message: 'Mensagem do Professor',
+      new_teacher_listing: 'Nova Pauta Submetida pelo Professor',
+      listing_approved: 'Pauta Aprovada',
+      listing_rejected: 'Pauta Rejeitada',
+      medical_guide_issued: 'Guia Médica Emitida',
+      medical_guide_updated: 'Guia Médica Actualizada',
     };
 
     const newNotif: SchoolNotification = {
@@ -650,6 +656,9 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         rejeitarPauta,
         markNotificationAsRead,
         unreadCount,
+        unreadMessagesCount,
+        unreadAnnouncementsCount,
+        conversations,
         toastMessage,
         dismissToast,
         isFirestoreSyncing,
