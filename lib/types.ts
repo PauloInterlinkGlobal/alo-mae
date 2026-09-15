@@ -792,3 +792,59 @@ export interface TeacherListing {
   createdAt: any;
   updatedAt: any;
 }
+
+// ==========================================
+// 20. Conversas e Mensagens de Chat Interno
+// ==========================================
+export type ConversationContext =
+  | 'student'
+  | 'academic'
+  | 'announcement'
+  | 'medical'
+  | 'general';
+
+export interface Conversation {
+  id: string;
+  institutionId: string;
+  participantIds: string[];
+  teacherUid: string;
+  guardianUid: string;
+  studentId: string;
+  subjectId?: string;
+  context: ConversationContext;
+  lastMessage?: string;
+  lastMessageAt?: any;
+  createdAt: any;
+  updatedAt: any;
+  active: boolean;
+
+  // Metadata para listagem e busca
+  teacherName: string;
+  teacherPhoto?: string;
+  guardianName: string;
+  guardianPhoto?: string;
+  studentName: string;
+  studentClass?: string;
+  subjectName?: string;
+  unreadCountTeacher?: number;
+  unreadCountGuardian?: number;
+}
+
+export type AttachmentType = 'image' | 'document' | 'pdf';
+
+export interface ChatMessage {
+  id: string;
+  conversationId: string;
+  senderUid: string;
+  receiverUid?: string;
+  senderName?: string;
+  senderRole?: 'professor' | 'pai' | 'encarregado' | 'instituicao';
+  text?: string;
+  attachmentUrl?: string;
+  attachmentType?: AttachmentType;
+  attachmentName?: string;
+  read: boolean;
+  readAt?: any;
+  createdAt: any;
+}
+

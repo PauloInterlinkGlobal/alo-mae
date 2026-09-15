@@ -45,10 +45,25 @@ export const ContactarProfessorModal: React.FC<ContactarProfessorModalProps> = (
     e.preventDefault();
     setIsSubmitting(true);
 
+    try {
+      const event = new CustomEvent('alomae-open-chat', {
+        detail: {
+          teacherUid: listing.teacherUid || listing.teacherId,
+          teacherName: listing.teacherName,
+          studentId: currentStudent?.id,
+          context: 'announcement',
+          initialMessage: `[Interesse no anúncio "${listing.title}"]: ${message}`,
+        },
+      });
+      window.dispatchEvent(event);
+    } catch (err) {
+      console.warn('Erro ao disparar evento de chat:', err);
+    }
+
     setTimeout(() => {
       setIsSubmitting(false);
       setIsSent(true);
-    }, 600);
+    }, 400);
   };
 
   return (

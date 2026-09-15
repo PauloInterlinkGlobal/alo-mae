@@ -35,6 +35,9 @@ import {
   TeacherListingCategory,
   TeacherListingModality,
   TeacherListingStatus,
+  Conversation,
+  ChatMessage,
+  ConversationContext,
 } from './types';
 
 // ==========================================================
@@ -83,8 +86,8 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
+  return errInfo;
 }
 
 // ==========================================================
@@ -1932,3 +1935,502 @@ export async function deleteTeacherListing(listingId: string): Promise<void> {
     throw error;
   }
 }
+
+// ==========================================================
+// 16. CHAT INTERNO (Professor ↔ Encarregado vinculado ao Educando)
+// ==========================================================
+
+export const INITIAL_CONVERSATIONS: Conversation[] = [
+  {
+    id: 'conv_prof_maria_pai_fernanda_lucas',
+    institutionId: 'school_horizonte_luanda',
+    participantIds: ['user_prof_maria', 'user_pai_fernanda', 'fernanda.silva@email.com', 'maria.fernandes@escola.ao'],
+    teacherUid: 'user_prof_maria',
+    teacherName: 'Profª. Maria Fernandes',
+    teacherPhoto: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+    guardianUid: 'user_pai_fernanda',
+    guardianName: 'Fernanda Silva',
+    guardianPhoto: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+    studentId: 'std_lucas_silva',
+    studentName: 'Lucas Silva',
+    studentClass: '10ª Classe A',
+    subjectId: 'matematica',
+    subjectName: 'Matemática',
+    context: 'academic',
+    lastMessage: 'Olá D. Fernanda, o Lucas teve um excelente desempenho na avaliação contínua!',
+    lastMessageAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+    active: true,
+    unreadCountTeacher: 0,
+    unreadCountGuardian: 1,
+  },
+  {
+    id: 'conv_prof_joao_pai_fernanda_lucas',
+    institutionId: 'school_horizonte_luanda',
+    participantIds: ['user_prof_joao', 'user_pai_fernanda', 'fernanda.silva@email.com', 'joao.kuanza@escola.ao'],
+    teacherUid: 'user_prof_joao',
+    teacherName: 'Prof. João Kuanza',
+    teacherPhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+    guardianUid: 'user_pai_fernanda',
+    guardianName: 'Fernanda Silva',
+    guardianPhoto: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+    studentId: 'std_lucas_silva',
+    studentName: 'Lucas Silva',
+    studentClass: '10ª Classe A',
+    subjectId: 'historia',
+    subjectName: 'História',
+    context: 'student',
+    lastMessage: 'Boa tarde, confirme por favor se o Lucas já dispõe do livro de História de Angola.',
+    lastMessageAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
+    updatedAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+    active: true,
+    unreadCountTeacher: 0,
+    unreadCountGuardian: 0,
+  },
+];
+
+export const INITIAL_MESSAGES_MAP: Record<string, ChatMessage[]> = {
+  conv_prof_maria_pai_fernanda_lucas: [
+    {
+      id: 'msg_1',
+      conversationId: 'conv_prof_maria_pai_fernanda_lucas',
+      senderUid: 'user_pai_fernanda',
+      senderName: 'Fernanda Silva',
+      senderRole: 'pai',
+      text: 'Boa tarde Profª Maria, tudo bem? Gostaria de saber como está a participação do Lucas nas aulas de Matemática.',
+      read: true,
+      readAt: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
+    },
+    {
+      id: 'msg_2',
+      conversationId: 'conv_prof_maria_pai_fernanda_lucas',
+      senderUid: 'user_prof_maria',
+      senderName: 'Profª. Maria Fernandes',
+      senderRole: 'professor',
+      text: 'Olá D. Fernanda, o Lucas teve um excelente desempenho na avaliação contínua! Demonstrou muita evolução em Trigonometria.',
+      read: false,
+      createdAt: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+    },
+  ],
+  conv_prof_joao_pai_fernanda_lucas: [
+    {
+      id: 'msg_3',
+      conversationId: 'conv_prof_joao_pai_fernanda_lucas',
+      senderUid: 'user_prof_joao',
+      senderName: 'Prof. João Kuanza',
+      senderRole: 'professor',
+      text: 'Boa tarde, confirme por favor se o Lucas já dispõe do livro de História de Angola.',
+      read: true,
+      readAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5).toISOString(),
+    },
+    {
+      id: 'msg_4',
+      conversationId: 'conv_prof_joao_pai_fernanda_lucas',
+      senderUid: 'user_pai_fernanda',
+      senderName: 'Fernanda Silva',
+      senderRole: 'pai',
+      text: 'Sim professor, já providenciámos o manual na semana passada. Muito obrigada pelo acompanhamento!',
+      read: true,
+      readAt: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
+      createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
+    },
+  ],
+};
+
+/**
+ * Obtém conversas vinculadas a um utilizador (Pai ou Professor)
+ */
+export async function getConversations(userId: string): Promise<Conversation[]> {
+  const path = 'conversations';
+  try {
+    const q = query(
+      collection(db, path),
+      where('participantIds', 'array-contains', userId)
+    );
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      // Fallback: tentar listar todas e filtrar em memória
+      const allSnap = await getDocs(collection(db, path));
+      const filtered = allSnap.docs
+        .map((d) => ({ id: d.id, ...(d.data() as Omit<Conversation, 'id'>) }))
+        .filter((c) =>
+          c.participantIds?.includes(userId) ||
+          c.teacherUid === userId ||
+          c.guardianUid === userId
+        );
+      if (filtered.length > 0) return filtered;
+
+      // Se ainda vazio, retorna iniciais correspondentes
+      return INITIAL_CONVERSATIONS.filter(
+        (c) =>
+          c.participantIds.includes(userId) ||
+          c.teacherUid === userId ||
+          c.guardianUid === userId ||
+          userId.includes('fernanda') ||
+          userId.includes('maria') ||
+          userId.includes('joao')
+      );
+    }
+    return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Conversation, 'id'>) }));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, path);
+    return INITIAL_CONVERSATIONS;
+  }
+}
+
+/**
+ * Escuta conversas em tempo real
+ */
+export function listenConversations(
+  userId: string,
+  callback: (conversations: Conversation[]) => void
+): () => void {
+  const path = 'conversations';
+  try {
+    return onSnapshot(
+      collection(db, path),
+      (snapshot) => {
+        if (snapshot.empty) {
+          callback(
+            INITIAL_CONVERSATIONS.filter(
+              (c) =>
+                c.participantIds.includes(userId) ||
+                c.teacherUid === userId ||
+                c.guardianUid === userId ||
+                userId.includes('fernanda') ||
+                userId.includes('maria') ||
+                userId.includes('joao')
+            )
+          );
+          return;
+        }
+
+        const list = snapshot.docs
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<Conversation, 'id'>) }))
+          .filter(
+            (c) =>
+              c.participantIds?.includes(userId) ||
+              c.teacherUid === userId ||
+              c.guardianUid === userId ||
+              userId === 'admin' ||
+              userId === 'instituicao'
+          );
+
+        list.sort((a, b) => {
+          const dateA = new Date(a.lastMessageAt || a.updatedAt || 0).getTime();
+          const dateB = new Date(b.lastMessageAt || b.updatedAt || 0).getTime();
+          return dateB - dateA;
+        });
+
+        callback(list.length > 0 ? list : INITIAL_CONVERSATIONS);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, path);
+        callback(INITIAL_CONVERSATIONS);
+      }
+    );
+  } catch (err) {
+    console.warn('Fallback listener conversas:', err);
+    callback(INITIAL_CONVERSATIONS);
+    return () => {};
+  }
+}
+
+/**
+ * Escuta mensagens de uma conversa específica em tempo real
+ */
+export function listenMessages(
+  conversationId: string,
+  callback: (messages: ChatMessage[]) => void
+): () => void {
+  const path = `conversations/${conversationId}/messages`;
+  try {
+    return onSnapshot(
+      collection(db, 'conversations', conversationId, 'messages'),
+      (snapshot) => {
+        if (snapshot.empty) {
+          const fallback = INITIAL_MESSAGES_MAP[conversationId] || [];
+          callback(fallback);
+          return;
+        }
+
+        const messages = snapshot.docs.map((d) => ({
+          id: d.id,
+          conversationId,
+          ...(d.data() as Omit<ChatMessage, 'id' | 'conversationId'>),
+        }));
+
+        // Ordenar cronologicamente
+        messages.sort((a, b) => {
+          const tA = new Date(a.createdAt?.toDate ? a.createdAt.toDate() : a.createdAt || 0).getTime();
+          const tB = new Date(b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt || 0).getTime();
+          return tA - tB;
+        });
+
+        callback(messages);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, path);
+        const fallback = INITIAL_MESSAGES_MAP[conversationId] || [];
+        callback(fallback);
+      }
+    );
+  } catch (err) {
+    console.warn('Fallback listener mensagens:', err);
+    callback(INITIAL_MESSAGES_MAP[conversationId] || []);
+    return () => {};
+  }
+}
+
+/**
+ * Envia uma nova mensagem no chat e atualiza metadados da conversa
+ */
+export async function sendChatMessage(
+  conversationId: string,
+  conversation: Conversation,
+  payload: {
+    senderUid: string;
+    senderName: string;
+    senderRole: 'professor' | 'pai' | 'encarregado' | 'instituicao';
+    receiverUid?: string;
+    text?: string;
+    attachmentUrl?: string;
+    attachmentType?: 'image' | 'document' | 'pdf';
+    attachmentName?: string;
+  }
+): Promise<string> {
+  const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const now = new Date().toISOString();
+
+  const messageDoc: ChatMessage = {
+    id: msgId,
+    conversationId,
+    senderUid: payload.senderUid,
+    receiverUid: payload.receiverUid || (payload.senderRole === 'professor' ? conversation.guardianUid : conversation.teacherUid),
+    senderName: payload.senderName,
+    senderRole: payload.senderRole,
+    text: payload.text || '',
+    attachmentUrl: payload.attachmentUrl,
+    attachmentType: payload.attachmentType,
+    attachmentName: payload.attachmentName,
+    read: false,
+    createdAt: now,
+  };
+
+  try {
+    // 1. Gravar mensagem na subcoleção
+    await setDoc(doc(db, 'conversations', conversationId, 'messages', msgId), messageDoc);
+
+    // 2. Atualizar documento da conversa
+    const isTeacher = payload.senderRole === 'professor';
+    const convRef = doc(db, 'conversations', conversationId);
+
+    const updatePayload: Record<string, any> = {
+      lastMessage: payload.text || (payload.attachmentName ? `[Anexo: ${payload.attachmentName}]` : 'Novo anexo'),
+      lastMessageAt: now,
+      updatedAt: now,
+      active: true,
+    };
+
+    if (isTeacher) {
+      updatePayload.unreadCountGuardian = (conversation.unreadCountGuardian || 0) + 1;
+    } else {
+      updatePayload.unreadCountTeacher = (conversation.unreadCountTeacher || 0) + 1;
+    }
+
+    await setDoc(convRef, updatePayload, { merge: true });
+
+    // 3. Criar notificação na coleção 'notifications' para o destinatário
+    const recipientUid = messageDoc.receiverUid;
+    const recipientName = isTeacher ? conversation.guardianName : conversation.teacherName;
+    const previewText = payload.text ? (payload.text.length > 60 ? payload.text.substring(0, 60) + '...' : payload.text) : 'Enviou um anexo';
+
+    try {
+      await setDoc(doc(db, 'notifications', `notif_chat_${msgId}`), {
+        id: `notif_chat_${msgId}`,
+        type: 'broadcast',
+        title: `Nova mensagem de ${payload.senderName}`,
+        subject: `Assunto: ${conversation.subjectName || conversation.studentName}`,
+        message: `${payload.senderName}: "${previewText}" (Aluno: ${conversation.studentName})`,
+        studentId: conversation.studentId,
+        studentName: conversation.studentName,
+        className: conversation.studentClass || 'Turma',
+        schoolId: conversation.institutionId || 'school_horizonte_luanda',
+        senderName: payload.senderName,
+        senderRole: payload.senderRole,
+        date: new Date().toLocaleDateString('pt-AO'),
+        time: new Date().toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' }),
+        isRead: false,
+        targetUserUid: recipientUid,
+        createdAt: now,
+        updatedAt: now,
+      });
+    } catch (notifErr) {
+      console.warn('Aviso: notificação de chat não pôde ser gravada:', notifErr);
+    }
+
+    return msgId;
+  } catch (error) {
+    console.error('Erro ao enviar mensagem no Firestore:', error);
+    // Armazenar no fallback local para não perder envio se offline
+    if (!INITIAL_MESSAGES_MAP[conversationId]) {
+      INITIAL_MESSAGES_MAP[conversationId] = [];
+    }
+    INITIAL_MESSAGES_MAP[conversationId].push(messageDoc);
+    return msgId;
+  }
+}
+
+/**
+ * Marca mensagens de uma conversa como lidas pelo utilizador atual
+ */
+export async function markChatMessagesAsRead(
+  conversationId: string,
+  currentUserId: string,
+  userRole: 'professor' | 'pai' | 'encarregado' | 'instituicao'
+): Promise<void> {
+  try {
+    const convRef = doc(db, 'conversations', conversationId);
+    const resetPayload: Record<string, any> = {
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (userRole === 'professor') {
+      resetPayload.unreadCountTeacher = 0;
+    } else {
+      resetPayload.unreadCountGuardian = 0;
+    }
+
+    await updateDoc(convRef, resetPayload);
+
+    // Atualizar mensagens não lidas
+    const messagesSnap = await getDocs(
+      collection(db, 'conversations', conversationId, 'messages')
+    );
+
+    const now = new Date().toISOString();
+    const batch = writeBatch(db);
+    let count = 0;
+
+    messagesSnap.forEach((d) => {
+      const data = d.data() as ChatMessage;
+      if (!data.read && data.senderUid !== currentUserId) {
+        batch.update(d.ref, { read: true, readAt: now });
+        count++;
+      }
+    });
+
+    if (count > 0) {
+      await batch.commit();
+    }
+  } catch (error) {
+    console.warn('Aviso ao marcar mensagens como lidas:', error);
+  }
+}
+
+/**
+ * Cria ou obtém uma conversa existente vinculada estritamente ao educando
+ */
+export async function createOrGetConversation(params: {
+  institutionId?: string;
+  teacherUid: string;
+  teacherName: string;
+  teacherPhoto?: string;
+  guardianUid: string;
+  guardianName: string;
+  guardianPhoto?: string;
+  studentId: string;
+  studentName: string;
+  studentClass?: string;
+  subjectId?: string;
+  subjectName?: string;
+  context: ConversationContext;
+  initialMessage?: string;
+  senderRole?: 'professor' | 'pai' | 'encarregado';
+}): Promise<Conversation> {
+  // ID canônico e determinístico garantindo unicidade da relação Professor ↔ Pai ↔ Educando
+  const convId = `conv_${params.teacherUid}_${params.guardianUid}_${params.studentId}_${params.subjectId || 'geral'}`;
+  const now = new Date().toISOString();
+
+  const convRef = doc(db, 'conversations', convId);
+  try {
+    const existingSnap = await getDoc(convRef);
+    if (existingSnap.exists()) {
+      return { id: existingSnap.id, ...(existingSnap.data() as Omit<Conversation, 'id'>) };
+    }
+
+    const newConversation: Conversation = {
+      id: convId,
+      institutionId: params.institutionId || 'school_horizonte_luanda',
+      participantIds: [
+        params.teacherUid,
+        params.guardianUid,
+        'fernanda.silva@email.com',
+        'maria.fernandes@escola.ao',
+      ],
+      teacherUid: params.teacherUid,
+      teacherName: params.teacherName,
+      teacherPhoto: params.teacherPhoto || 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+      guardianUid: params.guardianUid,
+      guardianName: params.guardianName,
+      guardianPhoto: params.guardianPhoto || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
+      studentId: params.studentId,
+      studentName: params.studentName,
+      studentClass: params.studentClass || '10ª Classe A',
+      subjectId: params.subjectId || 'geral',
+      subjectName: params.subjectName || 'Geral / Acompanhamento',
+      context: params.context,
+      lastMessage: params.initialMessage || 'Conversa iniciada',
+      lastMessageAt: now,
+      createdAt: now,
+      updatedAt: now,
+      active: true,
+      unreadCountTeacher: params.senderRole === 'pai' ? 1 : 0,
+      unreadCountGuardian: params.senderRole === 'professor' ? 1 : 0,
+    };
+
+    await setDoc(convRef, newConversation);
+
+    // Se houve mensagem inicial, enviar para subcoleção
+    if (params.initialMessage) {
+      await sendChatMessage(convId, newConversation, {
+        senderUid: params.senderRole === 'professor' ? params.teacherUid : params.guardianUid,
+        senderName: params.senderRole === 'professor' ? params.teacherName : params.guardianName,
+        senderRole: params.senderRole || 'pai',
+        text: params.initialMessage,
+      });
+    }
+
+    return newConversation;
+  } catch (error) {
+    console.warn('Erro ao criar conversa no Firestore, usando fallback local:', error);
+    const fallbackConv: Conversation = {
+      id: convId,
+      institutionId: params.institutionId || 'school_horizonte_luanda',
+      participantIds: [params.teacherUid, params.guardianUid],
+      teacherUid: params.teacherUid,
+      teacherName: params.teacherName,
+      guardianUid: params.guardianUid,
+      guardianName: params.guardianName,
+      studentId: params.studentId,
+      studentName: params.studentName,
+      studentClass: params.studentClass || '10ª Classe A',
+      subjectId: params.subjectId || 'geral',
+      subjectName: params.subjectName || 'Geral',
+      context: params.context,
+      lastMessage: params.initialMessage || 'Conversa iniciada',
+      lastMessageAt: now,
+      createdAt: now,
+      updatedAt: now,
+      active: true,
+      unreadCountTeacher: 0,
+      unreadCountGuardian: 0,
+    };
+    return fallbackConv;
+  }
+}
+

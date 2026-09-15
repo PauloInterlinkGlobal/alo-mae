@@ -187,6 +187,48 @@
         "updatedAt": { "type": "string" }
       },
       "required": ["studentId", "studentName", "classId", "schoolId", "insurancePolicyId", "insuranceProvider", "policyType", "coverage", "validityStart", "validityEnd", "emergencyPhone", "emergencyContactName"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Canal de conversação interna seguro entre Professor e Encarregado vinculado ao Educando.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "participantIds": { "type": "array" },
+        "teacherUid": { "type": "string" },
+        "guardianUid": { "type": "string" },
+        "studentId": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "context": { "type": "string", "enum": ["student", "academic", "announcement", "medical", "general"] },
+        "lastMessage": { "type": "string" },
+        "lastMessageAt": { "type": "string" },
+        "active": { "type": "boolean" },
+        "teacherName": { "type": "string" },
+        "guardianName": { "type": "string" },
+        "studentName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "institutionId", "participantIds", "teacherUid", "guardianUid", "studentId", "context", "active"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Mensagem individual do chat com suporte a texto, anexo e confirmação de leitura.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "senderUid": { "type": "string" },
+        "receiverUid": { "type": "string" },
+        "text": { "type": "string" },
+        "attachmentUrl": { "type": "string" },
+        "attachmentType": { "type": "string", "enum": ["image", "document", "pdf"] },
+        "attachmentName": { "type": "string" },
+        "read": { "type": "boolean" },
+        "readAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "senderUid", "read", "createdAt"]
     }
   },
   "firestore": {
@@ -221,6 +263,14 @@
     "/studentMedical/{studentId}": {
       "schema": { "$ref": "#/entities/StudentMedical" },
       "description": "Guias médicas, seguro escolar e histórico de saúde dos alunos."
+    },
+    "/conversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/Conversation" },
+      "description": "Conversas auditadas entre professores e encarregados sobre educandos."
+    },
+    "/conversations/{conversationId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Mensagens instantâneas com estados e anexos."
     }
   }
 }

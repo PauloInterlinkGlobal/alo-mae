@@ -3,6 +3,7 @@
 import React from 'react';
 import { RouteGuard } from '@/components/RouteGuard';
 import { ProfessorNav } from '@/components/professor/ProfessorNav';
+import { FloatingChatWidget } from '@/components/chat/FloatingChatWidget';
 
 export default function ProfessorLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,6 +16,9 @@ export default function ProfessorLayout({ children }: { children: React.ReactNod
         <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6">
           {children}
         </main>
+
+        {/* Floating Chat Widget (Float Bottom: Professor ↔ Encarregado) */}
+        <FloatingChatWidget defaultRole="professor" positionClass="bottom-6 right-6" />
       </div>
     </RouteGuard>
   );
