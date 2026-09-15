@@ -99,10 +99,7 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({
 
   // 2. Listen to active conversation messages
   useEffect(() => {
-    if (!activeConversation) {
-      setMessages([]);
-      return;
-    }
+    if (!activeConversation) return;
 
     const unsub = listenMessages(activeConversation.id, (msgs) => {
       setMessages(msgs);
@@ -123,7 +120,7 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({
 
   // 4. Listen for custom window event to open chat directly
   useEffect(() => {
-    const handleOpenChatEvent = (e: Event) => {
+    const handleOpenChatEvent = async (e: Event) => {
       const customEvent = e as CustomEvent<{
         teacherUid?: string;
         teacherName?: string;
@@ -135,8 +132,30 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({
       if (customEvent.detail) {
         setIsOpen(true);
         if (customEvent.detail.teacherUid) {
-          // Open or create conversation
-          handleInitiateDirectChat(customEvent.detail);
+          const detail = customEvent.detail;
+          const student = students.find((s) => s.id === detail.studentId) || students[0];
+          const teacherName = detail.teacherName || 'Docente Responsável';
+
+          try {
+            const conv = await createOrGetConversation({
+              teacherUid: detail.teacherUid || 'user_prof_maria',
+              teacherName,
+              guardianUid: currentUserId,
+              guardianName: currentUserName,
+              studentId: student?.id || 'std_lucas_silva',
+              studentName: student?.name || student?.fullName || 'Educando',
+              studentClass: student?.className || '10ª Classe',
+              context: detail.context || 'announcement',
+              initialMessage: detail.initialMessage,
+              senderRole: 'pai',
+            });
+
+            setActiveConversation(conv);
+            setActiveTab('chat');
+          } catch (convErr) {
+            console.warn('Erro ao abrir conversa via evento externo:', convErr);
+            setActiveTab('list');
+          }
         } else {
           setActiveTab('list');
         }
@@ -145,7 +164,7 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({
 
     window.addEventListener('alomae-open-chat', handleOpenChatEvent);
     return () => window.removeEventListener('alomae-open-chat', handleOpenChatEvent);
-  }, [students, turmasProfessores, currentUserId, currentUserName]);
+  }, [students, currentUserId, currentUserName]);
 
   // Load available teachers for new conversation
   useEffect(() => {
@@ -198,33 +217,7 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({
     });
   }, [conversations, searchTerm]);
 
-  // Handle initiate direct chat from external components (e.g. Anúncios)
-  const handleInitiateDirectChat = async (detail: {
-    teacherUid?: string;
-    teacherName?: string;
-    studentId?: string;
-    context?: ConversationContext;
-    initialMessage?: string;
-  }) => {
-    const student = students.find((s) => s.id === detail.studentId) || students[0];
-    const teacherName = detail.teacherName || 'Docente Responsável';
 
-    const conv = await createOrGetConversation({
-      teacherUid: detail.teacherUid || 'user_prof_maria',
-      teacherName,
-      guardianUid: currentUserId,
-      guardianName: currentUserName,
-      studentId: student?.id || 'std_lucas_silva',
-      studentName: student?.name || student?.fullName || 'Educando',
-      studentClass: student?.className || '10ª Classe',
-      context: detail.context || 'announcement',
-      initialMessage: detail.initialMessage,
-      senderRole: 'pai',
-    });
-
-    setActiveConversation(conv);
-    setActiveTab('chat');
-  };
 
   // Handle Send Message
   const handleSendMessage = async (e?: React.FormEvent) => {
@@ -244,9 +237,13 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({
         senderName: currentUserName,
         senderRole: isTeacher ? 'professor' : 'pai',
         text: textToSend,
-        attachmentUrl: attToSend?.url,
-        attachmentType: attToSend?.type,
-        attachmentName: attToSend?.name,
+        ...(attToSend
+          ? {
+              attachmentUrl: attToSend.url,
+              attachmentType: attToSend.type,
+              attachmentName: attToSend.name,
+            }
+          : {}),
       });
     } catch (err) {
       console.error('Erro ao enviar mensagem:', err);

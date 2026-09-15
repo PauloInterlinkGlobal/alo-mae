@@ -2187,6 +2187,23 @@ export function listenMessages(
 }
 
 /**
+ * Remove recursivamente campos 'undefined' para compatibilidade estrita com o Firestore
+ */
+export function stripUndefined<T extends Record<string, any>>(obj: T): T {
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Date)) {
+        result[key] = stripUndefined(value);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * Envia uma nova mensagem no chat e atualiza metadados da conversa
  */
 export async function sendChatMessage(
@@ -2206,24 +2223,33 @@ export async function sendChatMessage(
   const msgId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
 
-  const messageDoc: ChatMessage = {
+  const rawMessageDoc: Record<string, any> = {
     id: msgId,
     conversationId,
     senderUid: payload.senderUid,
     receiverUid: payload.receiverUid || (payload.senderRole === 'professor' ? conversation.guardianUid : conversation.teacherUid),
-    senderName: payload.senderName,
+    senderName: payload.senderName || 'Utilizador',
     senderRole: payload.senderRole,
     text: payload.text || '',
-    attachmentUrl: payload.attachmentUrl,
-    attachmentType: payload.attachmentType,
-    attachmentName: payload.attachmentName,
     read: false,
     createdAt: now,
   };
 
+  if (payload.attachmentUrl) {
+    rawMessageDoc.attachmentUrl = payload.attachmentUrl;
+  }
+  if (payload.attachmentType) {
+    rawMessageDoc.attachmentType = payload.attachmentType;
+  }
+  if (payload.attachmentName) {
+    rawMessageDoc.attachmentName = payload.attachmentName;
+  }
+
+  const messageDoc = stripUndefined(rawMessageDoc) as ChatMessage;
+
   try {
     // 1. Gravar mensagem na subcoleção
-    await setDoc(doc(db, 'conversations', conversationId, 'messages', msgId), messageDoc);
+    await setDoc(doc(db, 'conversations', conversationId, 'messages', msgId), stripUndefined(rawMessageDoc));
 
     // 2. Atualizar documento da conversa
     const isTeacher = payload.senderRole === 'professor';
@@ -2242,33 +2268,34 @@ export async function sendChatMessage(
       updatePayload.unreadCountTeacher = (conversation.unreadCountTeacher || 0) + 1;
     }
 
-    await setDoc(convRef, updatePayload, { merge: true });
+    await setDoc(convRef, stripUndefined(updatePayload), { merge: true });
 
     // 3. Criar notificação na coleção 'notifications' para o destinatário
     const recipientUid = messageDoc.receiverUid;
-    const recipientName = isTeacher ? conversation.guardianName : conversation.teacherName;
     const previewText = payload.text ? (payload.text.length > 60 ? payload.text.substring(0, 60) + '...' : payload.text) : 'Enviou um anexo';
 
     try {
-      await setDoc(doc(db, 'notifications', `notif_chat_${msgId}`), {
+      const notifData = stripUndefined({
         id: `notif_chat_${msgId}`,
         type: 'broadcast',
-        title: `Nova mensagem de ${payload.senderName}`,
-        subject: `Assunto: ${conversation.subjectName || conversation.studentName}`,
-        message: `${payload.senderName}: "${previewText}" (Aluno: ${conversation.studentName})`,
-        studentId: conversation.studentId,
-        studentName: conversation.studentName,
+        title: `Nova mensagem de ${payload.senderName || 'Utilizador'}`,
+        subject: `Assunto: ${conversation.subjectName || conversation.studentName || 'Acompanhamento'}`,
+        message: `${payload.senderName || 'Utilizador'}: "${previewText}" (Aluno: ${conversation.studentName || 'Educando'})`,
+        studentId: conversation.studentId || 'std',
+        studentName: conversation.studentName || 'Educando',
         className: conversation.studentClass || 'Turma',
         schoolId: conversation.institutionId || 'school_horizonte_luanda',
-        senderName: payload.senderName,
+        senderName: payload.senderName || 'Utilizador',
         senderRole: payload.senderRole,
         date: new Date().toLocaleDateString('pt-AO'),
         time: new Date().toLocaleTimeString('pt-AO', { hour: '2-digit', minute: '2-digit' }),
         isRead: false,
-        targetUserUid: recipientUid,
+        targetUserUid: recipientUid || '',
         createdAt: now,
         updatedAt: now,
       });
+
+      await setDoc(doc(db, 'notifications', `notif_chat_${msgId}`), notifData);
     } catch (notifErr) {
       console.warn('Aviso: notificação de chat não pôde ser gravada:', notifErr);
     }
@@ -2393,7 +2420,7 @@ export async function createOrGetConversation(params: {
       unreadCountGuardian: params.senderRole === 'professor' ? 1 : 0,
     };
 
-    await setDoc(convRef, newConversation);
+    await setDoc(convRef, stripUndefined(newConversation));
 
     // Se houve mensagem inicial, enviar para subcoleção
     if (params.initialMessage) {
