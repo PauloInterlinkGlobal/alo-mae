@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Logo } from '@/components/LogoImg';
 import { useSystem } from '@/lib/context';
-import { Users, Send, LogOut, BookOpen, Clock, UserCheck, FileSpreadsheet } from 'lucide-react';
+import { Users, Send, LogOut, BookOpen, Clock, UserCheck, FileSpreadsheet, Megaphone } from 'lucide-react';
 
 export const ProfessorNav: React.FC = () => {
   const pathname = usePathname();
@@ -73,6 +73,18 @@ export const ProfessorNav: React.FC = () => {
             >
               <Send className="w-4 h-4" />
               <span>Notificar Pais</span>
+            </Link>
+
+            <Link
+              href="/professor/anuncios"
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                pathname === '/professor/anuncios'
+                  ? 'bg-[#143A7B] text-white shadow-sm'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Megaphone className="w-4 h-4" />
+              <span>Anúncios & Aulas</span>
             </Link>
           </div>
 

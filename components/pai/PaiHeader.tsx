@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSystem } from '@/lib/context';
 import { Logo } from '@/components/LogoImg';
-import { Bell, HeartPulse, ChevronDown, LogOut, ShieldCheck, User } from 'lucide-react';
+import { Bell, HeartPulse, ChevronDown, LogOut, ShieldCheck, User, GraduationCap } from 'lucide-react';
 
 export const PaiHeader: React.FC = () => {
   const { currentUser, selectedStudent, students, setSelectedStudent, unreadCount, setActiveMedicalGuide, clinics, logout } = useSystem();
@@ -107,6 +107,13 @@ export const PaiHeader: React.FC = () => {
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Seguro Escolar 24h</span>
+              </Link>
+              <Link
+                href="/pai/anuncios"
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+                <span>Aulas & Explicações</span>
               </Link>
               <button
                 onClick={() => {

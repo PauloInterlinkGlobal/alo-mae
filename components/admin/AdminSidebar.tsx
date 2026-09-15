@@ -13,6 +13,7 @@ import {
   ExternalLink,
   GraduationCap,
   Users,
+  Megaphone,
 } from 'lucide-react';
 
 export const AdminSidebar: React.FC = () => {
@@ -36,6 +37,12 @@ export const AdminSidebar: React.FC = () => {
       href: '/admin/mini-pautas',
       icon: GraduationCap,
       desc: 'Homologação e aprovação de notas',
+    },
+    {
+      label: 'Moderação de Anúncios',
+      href: '/admin/anuncios',
+      icon: Megaphone,
+      desc: 'Aprovação de aulas e explicações',
     },
     {
       label: 'Seguro & Clínicas',

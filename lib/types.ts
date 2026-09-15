@@ -728,3 +728,67 @@ export interface AuditLog {
   newData?: unknown;
   timestamp: Timestamp | any;
 }
+
+// ==========================================
+// 19. Anúncios de Professores (teacherListings/{listingId})
+// ==========================================
+export type TeacherListingCategory =
+  | 'tutoring'
+  | 'home_tutoring'
+  | 'online'
+  | 'exam_preparation'
+  | 'academic_support'
+  | 'other';
+
+export type TeacherListingModality =
+  | 'home'
+  | 'online'
+  | 'school'
+  | 'other';
+
+export type TeacherListingStatus =
+  | 'draft'
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'suspended';
+
+export interface TeacherListingLocation {
+  province?: string;
+  municipality?: string;
+  district?: string;
+  description?: string;
+}
+
+export interface TeacherListingAvailability {
+  days?: string[];
+  startTime?: string;
+  endTime?: string;
+}
+
+export interface TeacherListing {
+  id: string;
+  institutionId: string;
+  teacherUid: string;
+  teacherId: string;
+  teacherName?: string;
+  teacherPhoto?: string;
+  title: string;
+  description: string;
+  subjectId?: string;
+  targetClasses?: string[];
+  category: TeacherListingCategory;
+  modality: TeacherListingModality;
+  location?: TeacherListingLocation;
+  availability?: TeacherListingAvailability;
+  price?: number;
+  currency?: string;
+  contactPhone?: string;
+  showPhone?: boolean;
+  imageUrl?: string;
+  status: TeacherListingStatus;
+  rejectionReason?: string;
+  publishedAt?: any;
+  createdAt: any;
+  updatedAt: any;
+}

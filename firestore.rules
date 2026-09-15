@@ -351,5 +351,52 @@ service cloud.firestore {
       allow list: if isInstituicao() && resource.data.schoolId == getSchoolId();
       allow write: if isInstituicao() && incoming().schoolId == getSchoolId();
     }
+
+    // ==========================================================
+    // 11. Coleção: teacherListings/{listingId}
+    //     Mural de Aulas Particulares, Explicação e Acompanhamento
+    // ==========================================================
+    match /teacherListings/{listingId} {
+      // READ:
+      // - Pai/Encarregado: apenas anúncios aprovados (published)
+      // - Professor: os próprios anúncios OU anúncios aprovados
+      // - Instituição: todos os anúncios
+      allow get: if isSignedIn() && (
+        resource.data.status == 'approved' ||
+        (isProfessor() && (resource.data.teacherUid == request.auth.uid || resource.data.teacherId == request.auth.uid)) ||
+        isInstituicao()
+      );
+
+      allow list: if isSignedIn() && (
+        resource.data.status == 'approved' ||
+        (isProfessor() && (resource.data.teacherUid == request.auth.uid || resource.data.teacherId == request.auth.uid)) ||
+        isInstituicao()
+      );
+
+      // CREATE:
+      // - Professor pode criar nos estados 'draft' ou 'pending'
+      // - Instituição pode criar
+      allow create: if isSignedIn() && (
+        (isProfessor() && (incoming().teacherUid == request.auth.uid || incoming().teacherId == request.auth.uid) && incoming().status in ['draft', 'pending']) ||
+        isInstituicao()
+      );
+
+      // UPDATE:
+      // - Professor pode editar os próprios anúncios enquanto editáveis (draft, pending, rejected)
+      // - Instituição pode aprovar, rejeitar, suspender ou editar
+      allow update: if isSignedIn() && (
+        (isProfessor() && (existing().teacherUid == request.auth.uid || existing().teacherId == request.auth.uid) &&
+         existing().status in ['draft', 'pending', 'rejected']) ||
+        isInstituicao()
+      );
+
+      // DELETE:
+      // - Professor pode apagar os próprios rascunhos ('draft')
+      // - Instituição pode apagar conforme regras administrativas
+      allow delete: if isSignedIn() && (
+        (isProfessor() && (existing().teacherUid == request.auth.uid || existing().teacherId == request.auth.uid) && existing().status == 'draft') ||
+        isInstituicao()
+      );
+    }
   }
 }

@@ -18,6 +18,7 @@ import {
   GraduationCap,
   Award,
 } from 'lucide-react';
+import { MuralAnunciosCarousel } from '@/components/pai/MuralAnunciosCarousel';
 
 export default function PaiInicioPage() {
   const {
@@ -197,7 +198,10 @@ export default function PaiInicioPage() {
         </div>
       </Link>
 
-      {/* 4. Unread notification highlight banner (if any) */}
+      {/* 4. Mural de Anúncios: Aulas Particulares e Explicações (Carousel & Slider Show) */}
+      <MuralAnunciosCarousel />
+
+      {/* 5. Unread notification highlight banner (if any) */}
       {recentUnreadNotif && (
         <Link
           href="/pai/notificacoes"

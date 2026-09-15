@@ -31,6 +31,10 @@ import {
   NotaAluno,
   PresencaBiometrica,
   GuiaMedica,
+  TeacherListing,
+  TeacherListingCategory,
+  TeacherListingModality,
+  TeacherListingStatus,
 } from './types';
 
 // ==========================================================
@@ -1503,5 +1507,428 @@ export async function seedInitialFirestoreData(): Promise<boolean> {
   } catch (error) {
     console.warn('Erro ao inicializar semente Firestore:', error);
     return false;
+  }
+}
+
+// ==========================================================
+// 19. Teacher Listings Collection (teacherListings/{listingId})
+//     Aulas Particulares & Explicações Domiciliares
+// ==========================================================
+
+export const INITIAL_TEACHER_LISTINGS: TeacherListing[] = [
+  {
+    id: 'listing_carlos_mat',
+    institutionId: 'escola_colegio_horizonte',
+    teacherUid: 'prof_antonio_silva',
+    teacherId: 'prof_antonio_silva',
+    teacherName: 'Prof. Carlos Manuel',
+    teacherPhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
+    title: 'Explicação de Matemática e Raciocínio Lógico',
+    description: 'Acompanhamento individual em Matemática, preparação para testes e recuperação de conteúdos com foco em resolução prática.',
+    subjectId: 'Matemática',
+    targetClasses: ['7ª Classe', '8ª Classe', '9ª Classe'],
+    category: 'home_tutoring',
+    modality: 'home',
+    location: {
+      province: 'Luanda',
+      municipality: 'Talatona',
+      district: 'Benfica / Talatona Sul',
+      description: 'Atendimento presencial no domicílio do aluno nas zonas de Talatona e Benfica',
+    },
+    availability: {
+      days: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'],
+      startTime: '14:30',
+      endTime: '18:30',
+    },
+    price: 5000,
+    currency: 'Kz',
+    contactPhone: '+244 923 456 789',
+    showPhone: false,
+    status: 'approved',
+    publishedAt: '2026-08-20T10:00:00Z',
+    createdAt: '2026-08-18T14:00:00Z',
+    updatedAt: '2026-08-20T10:00:00Z',
+  },
+  {
+    id: 'listing_teresa_pt',
+    institutionId: 'escola_colegio_horizonte',
+    teacherUid: 'prof_teresa_mendes',
+    teacherId: 'prof_teresa_mendes',
+    teacherName: 'Profª. Teresa Mendes',
+    teacherPhoto: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=200&auto=format&fit=crop&q=80',
+    title: 'Apoio em Língua Portuguesa, Redação e Gramática',
+    description: 'Especialista em desenvolvimento de redação estruturada, análise literária e interpretação de textos para o Ensino Secundário.',
+    subjectId: 'Língua Portuguesa',
+    targetClasses: ['5ª Classe', '6ª Classe', '7ª Classe', '8ª Classe', '9ª Classe'],
+    category: 'tutoring',
+    modality: 'school',
+    location: {
+      province: 'Luanda',
+      municipality: 'Luanda',
+      district: 'Maianga / Alvalade',
+      description: 'Instalações do colégio ou domiciliar nas imediações da Maianga',
+    },
+    availability: {
+      days: ['Terça-feira', 'Quinta-feira', 'Sábado'],
+      startTime: '15:00',
+      endTime: '18:00',
+    },
+    price: 4500,
+    currency: 'Kz',
+    contactPhone: '+244 931 234 567',
+    showPhone: true,
+    status: 'approved',
+    publishedAt: '2026-08-22T09:30:00Z',
+    createdAt: '2026-08-21T11:00:00Z',
+    updatedAt: '2026-08-22T09:30:00Z',
+  },
+  {
+    id: 'listing_manuel_fq',
+    institutionId: 'escola_colegio_horizonte',
+    teacherUid: 'prof_manuel_costa',
+    teacherId: 'prof_manuel_costa',
+    teacherName: 'Prof. Manuel Costa',
+    teacherPhoto: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&auto=format&fit=crop&q=80',
+    title: 'Preparação para Exames: Física & Química',
+    description: 'Mestre em Ciências Físicas. Aulas interativas com recurso a laboratórios virtuais e resolução comentada de exames dos anos anteriores.',
+    subjectId: 'Física',
+    targetClasses: ['10ª Classe', '11ª Classe', '12ª Classe'],
+    category: 'online',
+    modality: 'online',
+    location: {
+      province: 'Luanda',
+      municipality: 'Belas',
+      district: 'Kilamba / Belas',
+      description: 'Modalidade 100% Online via Google Meet / Sala Virtual',
+    },
+    availability: {
+      days: ['Segunda-feira', 'Quarta-feira', 'Sábado'],
+      startTime: '17:00',
+      endTime: '20:00',
+    },
+    price: 6000,
+    currency: 'Kz',
+    contactPhone: '+244 945 678 123',
+    showPhone: false,
+    status: 'approved',
+    publishedAt: '2026-08-25T15:00:00Z',
+    createdAt: '2026-08-24T10:00:00Z',
+    updatedAt: '2026-08-25T15:00:00Z',
+  },
+  {
+    id: 'listing_esperanca_prim',
+    institutionId: 'escola_colegio_horizonte',
+    teacherUid: 'prof_esperanca_afonso',
+    teacherId: 'prof_esperanca_afonso',
+    teacherName: 'Profª. Esperança Afonso',
+    teacherPhoto: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=200&auto=format&fit=crop&q=80',
+    title: 'Acompanhamento Escolar Global e TPCs (Primário)',
+    description: 'Supervisão diária das tarefas escolares, rotina de estudo e desenvolvimento da leitura e cálculo para alunos do Ensino Primário.',
+    subjectId: 'Estudo do Meio',
+    targetClasses: ['1ª Classe', '2ª Classe', '3ª Classe', '4ª Classe', '5ª Classe', '6ª Classe'],
+    category: 'academic_support',
+    modality: 'home',
+    location: {
+      province: 'Luanda',
+      municipality: 'Kilamba Kiaxi',
+      district: 'Camama / Morro Bento',
+      description: 'Atendimento no domicílio do aluno com materiais pedagógicos próprios',
+    },
+    availability: {
+      days: ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira'],
+      startTime: '14:00',
+      endTime: '17:30',
+    },
+    price: 4000,
+    currency: 'Kz',
+    contactPhone: '+244 924 888 999',
+    showPhone: false,
+    status: 'approved',
+    publishedAt: '2026-08-28T12:00:00Z',
+    createdAt: '2026-08-27T08:00:00Z',
+    updatedAt: '2026-08-28T12:00:00Z',
+  },
+  {
+    id: 'listing_joao_bio',
+    institutionId: 'escola_colegio_horizonte',
+    teacherUid: 'prof_joao_baptista',
+    teacherId: 'prof_joao_baptista',
+    teacherName: 'Prof. João Baptista',
+    teacherPhoto: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&auto=format&fit=crop&q=80',
+    title: 'Reforço de Biologia e Geologia - 10ª a 12ª Classe',
+    description: 'Foco nos módulos de Genética, Ecologia e Anatomia Humana com exercícios direcionados a exames de acesso ao ensino superior.',
+    subjectId: 'Biologia',
+    targetClasses: ['10ª Classe', '11ª Classe', '12ª Classe'],
+    category: 'exam_preparation',
+    modality: 'school',
+    location: {
+      province: 'Luanda',
+      municipality: 'Luanda',
+      district: 'Ingombota / Maculusso',
+      description: 'Salas de estudo do Colégio ou Domicílio sob consulta',
+    },
+    availability: {
+      days: ['Segunda-feira', 'Quarta-feira', 'Sexta-feira'],
+      startTime: '15:30',
+      endTime: '19:00',
+    },
+    price: 5500,
+    currency: 'Kz',
+    contactPhone: '+244 912 345 678',
+    showPhone: true,
+    status: 'pending',
+    createdAt: '2026-09-02T10:00:00Z',
+    updatedAt: '2026-09-02T10:00:00Z',
+  },
+];
+
+/**
+ * Carrega anúncios APROVADOS (visíveis para Pais / Encarregados)
+ * Se a coleção estiver vazia no Firestore, inicializa com a semente institucional
+ */
+export async function fetchApprovedTeacherListings(): Promise<TeacherListing[]> {
+  try {
+    const q = query(
+      collection(db, 'teacherListings'),
+      where('status', '==', 'approved')
+    );
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      // Seed Firestore with initial listings if completely empty
+      const batch = writeBatch(db);
+      for (const listing of INITIAL_TEACHER_LISTINGS) {
+        const ref = doc(db, 'teacherListings', listing.id);
+        batch.set(ref, listing);
+      }
+      try {
+        await batch.commit();
+      } catch (seedErr) {
+        console.warn('Não foi possível persistir semente inicial de anúncios no Firestore:', seedErr);
+      }
+      return INITIAL_TEACHER_LISTINGS.filter((l) => l.status === 'approved');
+    }
+
+    const listings: TeacherListing[] = [];
+    snap.forEach((docSnap) => {
+      listings.push({ ...(docSnap.data() as TeacherListing), id: docSnap.id });
+    });
+
+    // Ordenar pelos mais recentes publicados
+    listings.sort((a, b) => {
+      const dateA = a.publishedAt ? new Date(a.publishedAt).getTime() : 0;
+      const dateB = b.publishedAt ? new Date(b.publishedAt).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    return listings;
+  } catch (error) {
+    console.warn('Erro ao carregar anúncios aprovados do Firestore. A recorrer a fallback local:', error);
+    return INITIAL_TEACHER_LISTINGS.filter((l) => l.status === 'approved');
+  }
+}
+
+/**
+ * Carrega todos os anúncios de um determinado professor (rascunhos, pendentes, aprovados, rejeitados)
+ */
+export async function fetchTeacherListingsByTeacher(teacherIdOrUid: string): Promise<TeacherListing[]> {
+  try {
+    const q = query(
+      collection(db, 'teacherListings'),
+      where('teacherId', '==', teacherIdOrUid)
+    );
+    const snap = await getDocs(q);
+
+    if (snap.empty) {
+      // Also query by teacherUid if different
+      const qUid = query(
+        collection(db, 'teacherListings'),
+        where('teacherUid', '==', teacherIdOrUid)
+      );
+      const snapUid = await getDocs(qUid);
+      if (!snapUid.empty) {
+        const list: TeacherListing[] = [];
+        snapUid.forEach((d) => list.push({ ...(d.data() as TeacherListing), id: d.id }));
+        return list;
+      }
+      return INITIAL_TEACHER_LISTINGS.filter(
+        (l) => l.teacherId === teacherIdOrUid || l.teacherUid === teacherIdOrUid
+      );
+    }
+
+    const listings: TeacherListing[] = [];
+    snap.forEach((docSnap) => {
+      listings.push({ ...(docSnap.data() as TeacherListing), id: docSnap.id });
+    });
+    return listings;
+  } catch (error) {
+    console.warn('Erro ao carregar anúncios do professor:', error);
+    return INITIAL_TEACHER_LISTINGS.filter(
+      (l) => l.teacherId === teacherIdOrUid || l.teacherUid === teacherIdOrUid
+    );
+  }
+}
+
+/**
+ * Carrega todos os anúncios para a moderação da Instituição (Admin)
+ */
+export async function fetchAllTeacherListingsForAdmin(): Promise<TeacherListing[]> {
+  try {
+    const snap = await getDocs(collection(db, 'teacherListings'));
+    if (snap.empty) {
+      // Seed if empty
+      const batch = writeBatch(db);
+      for (const listing of INITIAL_TEACHER_LISTINGS) {
+        const ref = doc(db, 'teacherListings', listing.id);
+        batch.set(ref, listing);
+      }
+      try {
+        await batch.commit();
+      } catch (err) {
+        console.warn('Erro ao semear teacherListings:', err);
+      }
+      return INITIAL_TEACHER_LISTINGS;
+    }
+
+    const listings: TeacherListing[] = [];
+    snap.forEach((docSnap) => {
+      listings.push({ ...(docSnap.data() as TeacherListing), id: docSnap.id });
+    });
+    return listings;
+  } catch (error) {
+    console.warn('Erro ao carregar anúncios para o admin:', error);
+    return INITIAL_TEACHER_LISTINGS;
+  }
+}
+
+/**
+ * Salva ou atualiza um anúncio (Professor)
+ */
+export async function saveTeacherListing(
+  listing: Partial<TeacherListing> & {
+    teacherUid: string;
+    teacherId: string;
+    title: string;
+    description: string;
+  }
+): Promise<TeacherListing> {
+  try {
+    const listingId = listing.id || `listing_${listing.teacherId}_${Date.now()}`;
+    const completeListing: TeacherListing = {
+      id: listingId,
+      institutionId: listing.institutionId || 'escola_colegio_horizonte',
+      teacherUid: listing.teacherUid,
+      teacherId: listing.teacherId,
+      teacherName: listing.teacherName || 'Docente',
+      teacherPhoto: listing.teacherPhoto || '',
+      title: listing.title,
+      description: listing.description,
+      subjectId: listing.subjectId || 'Geral',
+      targetClasses: listing.targetClasses || ['7ª Classe', '8ª Classe'],
+      category: listing.category || 'tutoring',
+      modality: listing.modality || 'home',
+      location: listing.location || {
+        province: 'Luanda',
+        municipality: 'Talatona',
+        district: 'Luanda Sul',
+      },
+      availability: listing.availability || {
+        days: ['Segunda a Sexta'],
+        startTime: '14:00',
+        endTime: '18:00',
+      },
+      price: Number(listing.price) || 5000,
+      currency: listing.currency || 'Kz',
+      contactPhone: listing.contactPhone || '',
+      showPhone: listing.showPhone ?? false,
+      imageUrl: listing.imageUrl || '',
+      status: listing.status || 'draft',
+      rejectionReason: listing.rejectionReason || undefined,
+      publishedAt: listing.publishedAt || (listing.status === 'approved' ? new Date().toISOString() : undefined),
+      createdAt: listing.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, 'teacherListings', listingId), completeListing, { merge: true });
+    return completeListing;
+  } catch (error) {
+    console.error('Erro ao gravar anúncio no Firestore:', error);
+    throw error;
+  }
+}
+
+/**
+ * Submete anúncio para aprovação institucional (draft -> pending)
+ */
+export async function submitListingForReview(listingId: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'teacherListings', listingId), {
+      status: 'pending',
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Erro ao submeter anúncio para revisão:', error);
+    throw error;
+  }
+}
+
+/**
+ * Aprova anúncio (Instituição / Admin) -> status: 'approved'
+ */
+export async function approveTeacherListing(listingId: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'teacherListings', listingId), {
+      status: 'approved',
+      rejectionReason: null,
+      publishedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Erro ao aprovar anúncio:', error);
+    throw error;
+  }
+}
+
+/**
+ * Rejeita anúncio com motivo justificado (Instituição / Admin) -> status: 'rejected'
+ */
+export async function rejectTeacherListing(listingId: string, reason: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'teacherListings', listingId), {
+      status: 'rejected',
+      rejectionReason: reason,
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Erro ao rejeitar anúncio:', error);
+    throw error;
+  }
+}
+
+/**
+ * Suspende anúncio temporariamente (Instituição / Admin) -> status: 'suspended'
+ */
+export async function suspendTeacherListing(listingId: string, reason?: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'teacherListings', listingId), {
+      status: 'suspended',
+      rejectionReason: reason || 'Suspenso pela administração escolar',
+      updatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Erro ao suspender anúncio:', error);
+    throw error;
+  }
+}
+
+/**
+ * Apaga anúncio (Professor se for draft, ou Instituição)
+ */
+export async function deleteTeacherListing(listingId: string): Promise<void> {
+  try {
+    await deleteDoc(doc(db, 'teacherListings', listingId));
+  } catch (error) {
+    console.error('Erro ao apagar anúncio:', error);
+    throw error;
   }
 }
