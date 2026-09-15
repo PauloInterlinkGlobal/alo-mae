@@ -382,17 +382,24 @@ export const MuralAnunciosCarousel: React.FC = () => {
       ) : filteredListings.length === 0 ? (
         <div className="bg-slate-50 rounded-2xl p-8 text-center space-y-3 border border-dashed border-slate-200">
           <GraduationCap className="w-10 h-10 mx-auto text-slate-400" />
-          <h4 className="font-bold text-sm text-slate-800">Nenhum anúncio encontrado</h4>
+          <h4 className="font-bold text-sm text-slate-800">
+            {listings.length === 0
+              ? 'Nenhum professor anunciou aulas ou explicações neste momento.'
+              : 'Nenhum anúncio encontrado'}
+          </h4>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Não foram localizadas aulas que correspondam aos filtros selecionados. Tente alargar a
-            pesquisa.
+            {listings.length === 0
+              ? 'Logo que a Direção autorize novas publicações docentes, elas serão exibidas aqui.'
+              : 'Não foram localizadas aulas que correspondam aos filtros selecionados. Tente alargar a pesquisa.'}
           </p>
-          <button
-            onClick={resetFilters}
-            className="text-xs font-semibold text-[#143A7B] hover:underline"
-          >
-            Limpar todos os filtros
-          </button>
+          {listings.length > 0 && (
+            <button
+              onClick={resetFilters}
+              className="text-xs font-semibold text-[#143A7B] hover:underline cursor-pointer"
+            >
+              Limpar todos os filtros
+            </button>
+          )}
         </div>
       ) : viewMode === 'carousel' ? (
         /* CAROUSEL / SLIDER VIEW */

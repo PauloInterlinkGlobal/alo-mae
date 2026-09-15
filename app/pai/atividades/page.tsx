@@ -21,6 +21,7 @@ import {
 export type PeriodFilter =
   | 'all'
   | 'today'
+  | 'yesterday'
   | 'week'
   | 'month'
   | 'trimestre_current'
@@ -30,6 +31,7 @@ export type PeriodFilter =
   | 'semestre_current'
   | 'semestre_1'
   | 'semestre_2'
+  | 'year'
   | 'custom';
 
 // Parse AccessLog date robustly across Firestore timestamps, receipt codes, and PT date strings
@@ -160,6 +162,15 @@ function matchesPeriod(
     return logYear === nowYear && logMonth === nowMonth && logDay === nowDay;
   }
 
+  if (period === 'yesterday') {
+    const yDate = new Date(nowYear, nowMonth, nowDay - 1);
+    return (
+      logYear === yDate.getFullYear() &&
+      logMonth === yDate.getMonth() &&
+      logDay === yDate.getDate()
+    );
+  }
+
   if (period === 'week') {
     // Current week: Monday to Sunday
     const currentDayOfWeek = now.getDay();
@@ -220,6 +231,10 @@ function matchesPeriod(
       : [1, 2, 3, 4, 5, 6].includes(logMonth);
   }
 
+  if (period === 'year') {
+    return logYear === nowYear;
+  }
+
   if (period === 'custom') {
     if (!customStart && !customEnd) return true;
     const start = customStart ? new Date(customStart + 'T00:00:00') : null;
@@ -242,6 +257,15 @@ export default function PaiAtividadesPage() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [isCustomOpen, setIsCustomOpen] = useState(false);
+  const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (periodFilter !== 'all') count++;
+    if (filterType !== 'all') count++;
+    if (searchQuery.trim()) count++;
+    return count;
+  }, [periodFilter, filterType, searchQuery]);
 
   // All logs for the current selected student
   const studentLogs = useMemo(() => {
@@ -260,13 +284,44 @@ export default function PaiAtividadesPage() {
     return periodFilteredLogs.filter((log) => {
       if (filterType !== 'all' && log.type !== filterType) return false;
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return (
-          log.date.toLowerCase().includes(q) ||
-          log.timestamp.includes(q) ||
-          log.location.toLowerCase().includes(q) ||
-          log.receiptCode.toLowerCase().includes(q)
-        );
+        const q = searchQuery.toLowerCase().trim();
+        const matchesDate = log.date?.toLowerCase().includes(q);
+        const matchesTime = log.timestamp?.toLowerCase().includes(q);
+        const matchesLocation = log.location?.toLowerCase().includes(q);
+        const matchesHash = log.receiptCode?.toLowerCase().includes(q);
+        const matchesMethod = log.method?.toLowerCase().includes(q);
+        const matchesStudent = log.studentName?.toLowerCase().includes(q);
+
+        // Support month name search (ex: "setembro", "outubro", etc.)
+        const ptMonths = [
+          'janeiro',
+          'fevereiro',
+          'março',
+          'marco',
+          'abril',
+          'maio',
+          'junho',
+          'julho',
+          'agosto',
+          'setembro',
+          'outubro',
+          'novembro',
+          'dezembro',
+        ];
+        const logD = parseLogDate(log);
+        const matchesMonthName = logD && ptMonths[logD.getMonth()]?.includes(q);
+
+        if (
+          !matchesDate &&
+          !matchesTime &&
+          !matchesLocation &&
+          !matchesHash &&
+          !matchesMethod &&
+          !matchesStudent &&
+          !matchesMonthName
+        ) {
+          return false;
+        }
       }
       return true;
     });
@@ -277,6 +332,8 @@ export default function PaiAtividadesPage() {
     switch (periodFilter) {
       case 'today':
         return 'Hoje';
+      case 'yesterday':
+        return 'Ontem';
       case 'week':
         return 'Esta Semana';
       case 'month':
@@ -295,6 +352,8 @@ export default function PaiAtividadesPage() {
         return '1º Semestre (Set - Jan)';
       case 'semestre_2':
         return '2º Semestre (Fev - Jul)';
+      case 'year':
+        return 'Este Ano';
       case 'custom':
         if (customStartDate && customEndDate) return `${customStartDate} até ${customEndDate}`;
         if (customStartDate) return `A partir de ${customStartDate}`;
@@ -337,6 +396,20 @@ export default function PaiAtividadesPage() {
             Registo completo de entradas e saídas de {selectedStudent.name}
           </p>
         </div>
+
+        {/* Mobile & Quick Filter Button (Req 51) */}
+        <button
+          onClick={() => setIsMobileFilterOpen(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#143A7B] border border-blue-200 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+        >
+          <Filter className="w-3.5 h-3.5" />
+          <span>Filtrar</span>
+          {activeFiltersCount > 0 && (
+            <span className="w-4 h-4 bg-[#143A7B] text-white rounded-full text-[10px] font-bold flex items-center justify-center">
+              {activeFiltersCount}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Filter and Search controls */}
@@ -416,6 +489,19 @@ export default function PaiAtividadesPage() {
             </button>
             <button
               onClick={() => {
+                setPeriodFilter('yesterday');
+                setIsCustomOpen(false);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all ${
+                periodFilter === 'yesterday'
+                  ? 'bg-[#143A7B] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Ontem
+            </button>
+            <button
+              onClick={() => {
                 setPeriodFilter('week');
                 setIsCustomOpen(false);
               }}
@@ -465,6 +551,19 @@ export default function PaiAtividadesPage() {
               }`}
             >
               Semestre
+            </button>
+            <button
+              onClick={() => {
+                setPeriodFilter('year');
+                setIsCustomOpen(false);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-medium whitespace-nowrap transition-all ${
+                periodFilter === 'year'
+                  ? 'bg-[#143A7B] text-white shadow-xs'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Ano
             </button>
             <button
               onClick={() => {
@@ -764,7 +863,7 @@ export default function PaiAtividadesPage() {
         ) : (
           <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
             <History className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-700">Nenhum registo encontrado</p>
+            <p className="text-sm font-semibold text-slate-700">Nenhuma atividade encontrada.</p>
             <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
               Nenhuma atividade corresponde aos filtros selecionados para {selectedStudent.name}.
             </p>
@@ -780,6 +879,138 @@ export default function PaiAtividadesPage() {
           </div>
         )}
       </div>
+
+      {/* Mobile Bottom Sheet Modal for Filters (Requisito 51) */}
+      {isMobileFilterOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-t-3xl max-w-lg w-full p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up border-t border-slate-200 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-blue-50 text-[#143A7B] rounded-xl">
+                  <Filter className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-['Poppins',sans-serif] font-bold text-base text-slate-900">
+                    Filtros
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Filtrar histórico de {selectedStudent.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Período */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700 block">Período</label>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  { id: 'all', label: 'Todos' },
+                  { id: 'today', label: 'Hoje' },
+                  { id: 'yesterday', label: 'Ontem' },
+                  { id: 'week', label: 'Esta Semana' },
+                  { id: 'month', label: 'Este Mês' },
+                  { id: 'trimestre_current', label: 'Trimestre' },
+                  { id: 'semestre_current', label: 'Semestre' },
+                  { id: 'year', label: 'Ano' },
+                  { id: 'custom', label: 'Personalizado' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      setPeriodFilter(item.id as PeriodFilter);
+                      if (item.id === 'custom') setIsCustomOpen(true);
+                    }}
+                    className={`p-2.5 rounded-xl text-left font-medium transition-all ${
+                      periodFilter === item.id
+                        ? 'bg-[#143A7B] text-white font-semibold'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tipo */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700 block">Tipo</label>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                {[
+                  { id: 'all', label: 'Todas' },
+                  { id: 'entry', label: 'Entrada' },
+                  { id: 'exit', label: 'Saída' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => setFilterType(item.id as 'all' | 'entry' | 'exit')}
+                    className={`py-2 px-3 rounded-xl text-center font-medium transition-all ${
+                      filterType === item.id
+                        ? 'bg-[#143A7B] text-white font-semibold'
+                        : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200/60'
+                    }`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Intervalo Personalizado */}
+            {(periodFilter === 'custom' || isCustomOpen) && (
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <span className="text-xs font-semibold text-slate-700 block">Intervalo de Datas</span>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1">Data inicial</label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-slate-500 mb-1">Data final</label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="w-full p-2 bg-white border border-slate-200 rounded-xl text-slate-800 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Ações */}
+            <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  resetFilters();
+                  setIsMobileFilterOpen(false);
+                }}
+                className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Limpar
+              </button>
+              <button
+                onClick={() => setIsMobileFilterOpen(false)}
+                className="flex-1 py-2.5 px-4 bg-[#143A7B] hover:bg-[#0D1B3D] text-white rounded-xl text-xs font-bold shadow-md transition-colors cursor-pointer"
+              >
+                Aplicar filtros
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

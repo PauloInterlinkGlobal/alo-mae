@@ -494,7 +494,7 @@ export const FloatingChatWidget: React.FC<FloatingChatWidgetProps> = ({
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
                         <MessageSquare className="w-6 h-6" />
                       </div>
-                      <p className="text-xs font-medium text-slate-600">Nenhuma conversa encontrada</p>
+                      <p className="text-xs font-semibold text-slate-700">Nenhuma conversa iniciada.</p>
                       <p className="text-[11px] text-slate-400 max-w-xs mx-auto">
                         Inicie um canal seguro entre professor e encarregado vinculado ao educando.
                       </p>

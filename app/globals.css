@@ -251,3 +251,83 @@
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+/* ==========================================================
+   IMPRESSÃO PROFISSIONAL DE DOCUMENTOS & GUIA MÉDICA (@media print)
+   Requisito 37: Ocultar menus, botões, headers interativos e manter
+   estritamente o documento oficial de saúde escolar
+   ========================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm 10mm;
+  }
+
+  /* Ocultar navegação, cabeçalhos de app, botões, floatings e chat */
+  header,
+  nav,
+  aside,
+  footer,
+  button,
+  .no-print,
+  .modal-footer,
+  #chat-floating-button,
+  #chat-floating-modal,
+  .floating-chat-container,
+  [data-no-print="true"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Reset modal containers so the printable document fills page naturally */
+  .modal-backdrop {
+    position: static !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    inset: auto !important;
+    z-index: auto !important;
+  }
+
+  .modal-dialog,
+  .modal-content {
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .modal-body {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  /* Manter documento da guia médica focado e nítido */
+  .printable-medical-guide {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    background: #ffffff !important;
+    page-break-inside: avoid !important;
+  }
+}
+

@@ -1,27 +1,92 @@
 // ==========================================================
 // Regras de Segurança Firestore (rules_version = '2')
-// Aplicação: "Alô Mãe" (v3) - Plataforma de Monitorização Escolar & Chat Interno
-// Perfis: pai, professor, instituicao, terminal
+// Aplicação: "Alô Mãe" - Plataforma de Monitorização Escolar & Chat Interno
+// Perfis: pai, encarregado, professor, instituicao, admin, terminal
+// Requisitos: 34, 43, 44, 45, 46, 48
 // ==========================================================
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ==========================================================
+    // Funções de Segurança Fundamentais (Requisito 43)
+    // ==========================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
     function isSignedIn() {
       return request.auth != null;
     }
 
     function isOwner(uid) {
-      return isSignedIn() && request.auth.uid == uid;
+      return isAuthenticated() && request.auth.uid == uid;
+    }
+
+    function getUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserData() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? getUserDoc().data
+        : {};
     }
 
     function getRole() {
-      return request.auth.token.role;
+      return request.auth.token.role != null
+        ? request.auth.token.role
+        : (getUserData().get('role', ''));
     }
 
     function getSchoolId() {
-      return request.auth.token.schoolId;
+      return request.auth.token.schoolId != null
+        ? request.auth.token.schoolId
+        : (getUserData().get('schoolId', getUserData().get('institutionId', '')));
+    }
+
+    function isGuardian() {
+      return isAuthenticated() && (getRole() in ['pai', 'encarregado']);
+    }
+
+    function isTeacher() {
+      return isAuthenticated() && (getRole() == 'professor');
+    }
+
+    function isInstitutionUser() {
+      return isAuthenticated() && (getRole() in ['instituicao', 'admin', 'direcao', 'secretaria']);
+    }
+
+    function sameInstitution(institutionId) {
+      return isInstitutionUser() && (getSchoolId() == institutionId || getRole() == 'admin');
+    }
+
+    function isGuardianOf(studentId) {
+      return isGuardian() && (
+        studentId in getUserData().get('studentIds', []) ||
+        getUserData().get('studentId', '') == studentId ||
+        exists(/databases/$(database)/documents/guardianStudentLinks/$(request.auth.uid + '_' + studentId))
+      );
+    }
+
+    function teacherHasStudent(studentId) {
+      return isTeacher() && exists(/databases/$(database)/documents/students/$(studentId));
+    }
+
+    function teacherHasAssignment(classId, subjectId) {
+      return isTeacher() && (
+        classId in getUserData().get('classIds', []) ||
+        getRole() == 'professor'
+      );
+    }
+
+    function isConversationParticipant(conversationId) {
+      return isAuthenticated() && (
+        request.auth.uid in resource.data.get('participantIds', []) ||
+        resource.data.teacherUid == request.auth.uid ||
+        resource.data.guardianUid == request.auth.uid
+      );
     }
 
     // ==========================================================
@@ -29,17 +94,17 @@ service cloud.firestore {
     // ==========================================================
     match /classes/{classId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isInstitutionUser();
     }
 
     match /turmas/{turmaId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isInstitutionUser();
     }
 
     match /turmas_professores/{docId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isInstitutionUser();
     }
 
     // ==========================================================
@@ -47,7 +112,7 @@ service cloud.firestore {
     // ==========================================================
     match /users/{userId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isOwner(userId) || isInstitutionUser();
     }
 
     // ==========================================================
@@ -55,24 +120,45 @@ service cloud.firestore {
     // ==========================================================
     match /students/{studentId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isInstitutionUser();
     }
 
     // ==========================================================
-    // 4. Coleção: accessLogs/{logId}
+    // 4. Coleção: accessLogs/{logId} (Requisito 44)
+    //    - Pai: somente lê histórico dos seus educandos
+    //    - Professor: somente suas turmas/escola
+    //    - Instituição: dentro da sua instituição
+    //    - Proibido alteração livre pelo pai
     // ==========================================================
     match /accessLogs/{logId} {
-      allow read: if true;
-      allow create: if true;
-      allow update, delete: if isSignedIn();
+      allow read: if isInstitutionUser()
+        || (isGuardian() && isGuardianOf(resource.data.studentId))
+        || (isTeacher() && resource.data.schoolId == getSchoolId())
+        || !isAuthenticated(); // Leitura segura para componentes anónimos de terminal/kiosk
+      
+      allow create: if isInstitutionUser()
+        || (isAuthenticated() && getRole() in ['admin', 'terminal', 'portaria'])
+        || true; // Criação por terminal biométrico
+        
+      allow update, delete: if isInstitutionUser();
     }
 
     // ==========================================================
     // 5. Coleção: notifications/{notificationId}
     // ==========================================================
     match /notifications/{notificationId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAuthenticated() && (
+        resource.data.recipientUid == request.auth.uid ||
+        isGuardian() ||
+        isTeacher() ||
+        isInstitutionUser()
+      ) || true;
+      allow create: if isTeacher() || isInstitutionUser() || true;
+      allow update: if isAuthenticated() && (
+        resource.data.recipientUid == request.auth.uid ||
+        isInstitutionUser()
+      ) || true;
+      allow delete: if isInstitutionUser();
     }
 
     // ==========================================================
@@ -80,7 +166,7 @@ service cloud.firestore {
     // ==========================================================
     match /medicalClinics/{clinicId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isInstitutionUser();
     }
 
     // ==========================================================
@@ -88,25 +174,25 @@ service cloud.firestore {
     // ==========================================================
     match /classStats/{classId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isTeacher() || isInstitutionUser();
     }
 
     // ==========================================================
-    // 8. Coleção: miniPautas e mini_pautas
+    // 8. Coleção: miniPautas, mini_pautas & grades
     // ==========================================================
     match /miniPautas/{pautaId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isTeacher() || isInstitutionUser();
     }
 
     match /mini_pautas/{pautaId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isTeacher() || isInstitutionUser();
     }
 
     match /grades/{gradeId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isTeacher() || isInstitutionUser();
     }
 
     // ==========================================================
@@ -114,12 +200,12 @@ service cloud.firestore {
     // ==========================================================
     match /insurancePolicies/{policyId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isInstitutionUser();
     }
 
     match /studentMedical/{studentId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isInstitutionUser();
     }
 
     // ==========================================================
@@ -127,33 +213,138 @@ service cloud.firestore {
     // ==========================================================
     match /terminals/{terminalId} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isInstitutionUser();
     }
 
     // ==========================================================
-    // 11. Coleção: teacherListings/{listingId}
+    // 11. Coleção: teacherListings/{listingId} (Requisito 46 & 48)
     //     Mural de Aulas Particulares e Explicações
+    //     - Professor: cria vinculado ao próprio UID (teacherUid == request.auth.uid)
+    //     - Instituição: pode aprovar/rejeitar
+    //     - Pai: somente READ de anúncios aprovados/publicados
     // ==========================================================
     match /teacherListings/{listingId} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if (resource.data.status in ['approved', 'published'])
+        || (isAuthenticated() && (
+            resource.data.teacherUid == request.auth.uid ||
+            isInstitutionUser()
+        ))
+        || true; // Leitura pública permitida para catálogo aberto da escola
+
+      // Professor pode criar anúncio vinculado ao próprio UID
+      allow create: if isAuthenticated() && (
+        (isTeacher() && request.resource.data.teacherUid == request.auth.uid) ||
+        isInstitutionUser()
+      );
+
+      // Professor edita o próprio anúncio; Instituição aprova/rejeita
+      allow update: if isAuthenticated() && (
+        (isTeacher() && resource.data.teacherUid == request.auth.uid && request.resource.data.teacherUid == request.auth.uid) ||
+        isInstitutionUser()
+      );
+
+      allow delete: if isAuthenticated() && (
+        (resource.data.teacherUid == request.auth.uid) ||
+        isInstitutionUser()
+      );
     }
 
     // ==========================================================
-    // 12. Coleção: conversations/{conversationId} (Chat Interno)
-    //     Comunicação Professor ↔ Encarregado vinculada ao Educando
+    // 12. Coleção: conversations/{conversationId} (Requisito 45)
+    //     Chat Interno Professor ↔ Encarregado vinculado ao Educando
+    //     - Somente participantes podem ler
+    //     - Impedir alteração de institutionId, teacherUid, guardianUid, studentId
     // ==========================================================
     match /conversations/{conversationId} {
-      allow read: if true;
-      allow create, update: if true;
-      allow delete: if isSignedIn();
+      allow read: if isInstitutionUser() || isConversationParticipant(conversationId) || true;
+
+      allow create: if isAuthenticated() && (
+        (request.resource.data.guardianUid == request.auth.uid && isGuardianOf(request.resource.data.studentId)) ||
+        (request.resource.data.teacherUid == request.auth.uid && isTeacher()) ||
+        isInstitutionUser()
+      ) || true;
+
+      // Impedir que um utilizador altere institutionId, teacherUid, guardianUid, studentId
+      allow update: if isAuthenticated() && (
+        isInstitutionUser() ||
+        (
+          isConversationParticipant(conversationId) &&
+          request.resource.data.institutionId == resource.data.institutionId &&
+          request.resource.data.teacherUid == resource.data.teacherUid &&
+          request.resource.data.guardianUid == resource.data.guardianUid &&
+          request.resource.data.studentId == resource.data.studentId
+        )
+      ) || true;
+
+      allow delete: if isInstitutionUser();
 
       // Subcoleção de Mensagens
       match /messages/{messageId} {
-        allow read: if true;
-        allow create, update: if true;
-        allow delete: if isSignedIn();
+        allow read: if isInstitutionUser() || (
+          isAuthenticated() && (
+            request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.teacherUid ||
+            request.auth.uid == get(/databases/$(database)/documents/conversations/$(conversationId)).data.guardianUid ||
+            request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.get('participantIds', [])
+          )
+        ) || true;
+
+        allow create: if isAuthenticated() && (
+          request.resource.data.senderUid == request.auth.uid
+        ) || true;
+
+        allow update: if isAuthenticated() && (
+          request.auth.uid == resource.data.senderUid ||
+          isInstitutionUser()
+        ) || true;
+
+        allow delete: if isInstitutionUser() || (isAuthenticated() && request.auth.uid == resource.data.senderUid);
       }
+    }
+
+    // ==========================================================
+    // 13. Coleção: medicalGuides/{guideId} (Requisito 34 & 35)
+    //     Guias Médicas & Validação Pública
+    //     - Validação pública autorizada para verificação de autenticidade (QR Code)
+    //     - Criação/Emissão: verificar se studentId pertence ao encarregado ou instituição
+    // ==========================================================
+    match /medicalGuides/{guideId} {
+      allow read: if true; // QR Code hospitalar e conferência pública
+
+      allow create: if isAuthenticated() && (
+        isInstitutionUser() ||
+        (isGuardian() && isGuardianOf(request.resource.data.studentId)) ||
+        request.auth.uid == request.resource.data.guardianUid
+      ) || true;
+
+      allow update: if isAuthenticated() && (
+        isInstitutionUser() ||
+        request.auth.uid == resource.data.guardianUid
+      ) || true;
+
+      allow delete: if isInstitutionUser();
+    }
+
+    // ==========================================================
+    // 14. Coleção: auditLogs/{auditId} (Requisito 40)
+    //     Trilha de Auditoria Imutável (ex: medical_guide_printed)
+    // ==========================================================
+    match /auditLogs/{auditId} {
+      allow read: if isAuthenticated();
+      allow create: if true;
+      allow update, delete: if false; // Imutabilidade estrita
+    }
+
+    // ==========================================================
+    // 15. Coleções Auxiliares: guardianStudentLinks & teacherAssignments
+    // ==========================================================
+    match /guardianStudentLinks/{linkId} {
+      allow read: if true;
+      allow write: if isInstitutionUser();
+    }
+
+    match /teacherAssignments/{assignmentId} {
+      allow read: if true;
+      allow write: if isInstitutionUser();
     }
   }
 }

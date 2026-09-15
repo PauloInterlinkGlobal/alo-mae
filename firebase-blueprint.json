@@ -188,6 +188,28 @@
       },
       "required": ["studentId", "studentName", "classId", "schoolId", "insurancePolicyId", "insuranceProvider", "policyType", "coverage", "validityStart", "validityEnd", "emergencyPhone", "emergencyContactName"]
     },
+    "TeacherListing": {
+      "title": "TeacherListing",
+      "description": "Anúncios e ofertas de aulas de apoio, explicações e reforço escolar criados por professores.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "teacherUid": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "teacherName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "subjectId": { "type": "string" },
+        "category": { "type": "string", "enum": ["tutoring", "home_tutoring", "online", "exam_preparation", "academic_support", "other"] },
+        "modality": { "type": "string", "enum": ["home", "online", "school", "other"] },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["draft", "pending", "approved", "rejected", "suspended"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "institutionId", "teacherUid", "title", "category", "modality", "status"]
+    },
     "Conversation": {
       "title": "Conversation",
       "description": "Canal de conversação interna seguro entre Professor e Encarregado vinculado ao Educando.",
@@ -229,6 +251,66 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "senderUid", "read", "createdAt"]
+    },
+    "MedicalGuide": {
+      "title": "MedicalGuide",
+      "description": "Guia médica de atendimento hospitalar e urgência escolar emitida para um educando.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "guideNumber": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "schoolName": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "studentPhoto": { "type": "string" },
+        "studentMatricula": { "type": "string" },
+        "className": { "type": "string" },
+        "guardianUid": { "type": "string" },
+        "guardianName": { "type": "string" },
+        "guardianPhoto": { "type": "string" },
+        "emergencyContactPhone": { "type": "string" },
+        "clinicId": { "type": "string" },
+        "clinicName": { "type": "string" },
+        "clinicAddress": { "type": "string" },
+        "clinicEmergencyPhone": { "type": "string" },
+        "insuranceProviderName": { "type": "string" },
+        "insurancePolicyNumber": { "type": "string" },
+        "insuranceType": { "type": "string" },
+        "hasInsurance": { "type": "boolean" },
+        "coveragesSummary": { "type": "string" },
+        "reason": { "type": "string" },
+        "priority": { "type": "string", "enum": ["normal", "urgent", "emergency"] },
+        "status": { "type": "string", "enum": ["draft", "issued", "accepted", "in_service", "completed", "cancelled"] },
+        "issuedByUid": { "type": "string" },
+        "issuedByName": { "type": "string" },
+        "issuedAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "notes": { "type": "string" },
+        "validationUrl": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "guideNumber", "institutionId", "studentId", "studentName", "clinicId", "clinicName", "priority", "status", "issuedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Registo de auditoria de ações sensíveis (ex: impressão de guia médica).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "institutionId": { "type": "string" },
+        "actorUid": { "type": "string" },
+        "actorName": { "type": "string" },
+        "actorRole": { "type": "string" },
+        "action": { "type": "string" },
+        "entityType": { "type": "string" },
+        "entityId": { "type": "string" },
+        "description": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "actorUid", "action", "timestamp"]
     }
   },
   "firestore": {
@@ -263,6 +345,18 @@
     "/studentMedical/{studentId}": {
       "schema": { "$ref": "#/entities/StudentMedical" },
       "description": "Guias médicas, seguro escolar e histórico de saúde dos alunos."
+    },
+    "/medicalGuides/{guideId}": {
+      "schema": { "$ref": "#/entities/MedicalGuide" },
+      "description": "Guias médicas autorizadas para impressão e validação hospitalar."
+    },
+    "/auditLogs/{auditId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Trilha de auditoria e conformidade institucional."
+    },
+    "/teacherListings/{listingId}": {
+      "schema": { "$ref": "#/entities/TeacherListing" },
+      "description": "Mural de aulas particulares e explicações de professores."
     },
     "/conversations/{conversationId}": {
       "schema": { "$ref": "#/entities/Conversation" },

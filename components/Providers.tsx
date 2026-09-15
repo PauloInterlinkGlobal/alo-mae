@@ -25,6 +25,7 @@ function GlobalModals() {
 
       <GuiaAtendimentoModal
         guideData={activeMedicalGuide}
+        autoPrint={activeMedicalGuide?.autoPrint}
         onClose={() => setActiveMedicalGuide(null)}
       />
 

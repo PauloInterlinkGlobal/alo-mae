@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Student,
   AccessLog,
@@ -20,6 +20,7 @@ import {
   NotaAluno,
   PresencaBiometrica,
   GuiaMedica,
+  Conversation,
 } from './types';
 import {
   INITIAL_STUDENTS,
@@ -39,6 +40,8 @@ import {
   listenMedicalClinics,
   listenMiniPautas,
   listenGrades,
+  listenConversations,
+  INITIAL_CONVERSATIONS,
   createAccessLog as firestoreCreateAccessLog,
   createNotification as firestoreCreateNotification,
   markNotificationAsRead as firestoreMarkNotificationAsRead,
@@ -78,8 +81,8 @@ interface SystemContextType {
   // Selected State
   selectedStudent: Student;
   setSelectedStudent: (student: Student) => void;
-  activeMedicalGuide: { student: Student; clinic: MedicalClinic } | null;
-  setActiveMedicalGuide: (guide: { student: Student; clinic: MedicalClinic } | null) => void;
+  activeMedicalGuide: { student: Student; clinic: MedicalClinic; autoPrint?: boolean } | null;
+  setActiveMedicalGuide: (guide: { student: Student; clinic: MedicalClinic; autoPrint?: boolean } | null) => void;
   selectedReceiptLog: AccessLog | null;
   setSelectedReceiptLog: (log: AccessLog | null) => void;
   isSimulatingWebcam: boolean;
@@ -114,6 +117,9 @@ interface SystemContextType {
 
   markNotificationAsRead: (id: string) => Promise<void>;
   unreadCount: number;
+  unreadMessagesCount: number;
+  unreadAnnouncementsCount: number;
+  conversations: Conversation[];
   toastMessage: { title: string; desc: string; type: 'success' | 'info' | 'alert' } | null;
   dismissToast: () => void;
   isFirestoreSyncing: boolean;
@@ -154,10 +160,27 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Selected state
   const [selectedStudent, setSelectedStudent] = useState<Student>(INITIAL_STUDENTS[0]);
-  const [activeMedicalGuide, setActiveMedicalGuide] = useState<{ student: Student; clinic: MedicalClinic } | null>(null);
+  const [activeMedicalGuide, setActiveMedicalGuide] = useState<{ student: Student; clinic: MedicalClinic; autoPrint?: boolean } | null>(null);
   const [selectedReceiptLog, setSelectedReceiptLog] = useState<AccessLog | null>(null);
   const [isSimulatingWebcam, setIsSimulatingWebcam] = useState<boolean>(true);
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string; type: 'success' | 'info' | 'alert' } | null>(null);
+
+  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
+
+  const unreadMessagesCount = useMemo(() => {
+    if (!currentUser) return 0;
+    const isTeacher = currentUser.role === 'professor';
+    return conversations.reduce((acc, c) => {
+      const count = isTeacher ? (c.unreadCountTeacher || 0) : (c.unreadCountGuardian || 0);
+      return acc + count;
+    }, 0);
+  }, [conversations, currentUser]);
+
+  const unreadAnnouncementsCount = useMemo(() => {
+    return notifications.filter(
+      (n) => !n.isRead && ['new_teacher_listing', 'listing_approved', 'listing_rejected'].includes(n.type)
+    ).length;
+  }, [notifications]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
   const dismissToast = () => setToastMessage(null);
@@ -171,6 +194,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     let unsubClinics: (() => void) | undefined;
     let unsubPautas: (() => void) | undefined;
     let unsubGrades: (() => void) | undefined;
+    let unsubConversations: (() => void) | undefined;
 
     async function initFirestore() {
       setIsFirestoreSyncing(true);

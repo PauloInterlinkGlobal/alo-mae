@@ -38,6 +38,7 @@ import {
   Conversation,
   ChatMessage,
   ConversationContext,
+  MedicalGuide,
 } from './types';
 
 // ==========================================================
@@ -2458,6 +2459,121 @@ export async function createOrGetConversation(params: {
       unreadCountGuardian: 0,
     };
     return fallbackConv;
+  }
+}
+
+// ==========================================================
+// 19. Guias Médicas & Validação Hospitalar (medicalGuides)
+// ==========================================================
+export async function saveMedicalGuide(guide: MedicalGuide): Promise<void> {
+  const guideDocRef = doc(db, 'medicalGuides', guide.guideNumber);
+  const sanitized = stripUndefined({
+    ...guide,
+    createdAt: guide.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+
+  try {
+    await setDoc(guideDocRef, sanitized, { merge: true });
+  } catch (err) {
+    console.warn('Erro ao salvar guia médica no Firestore (usando fallback local):', err);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`alomae_guide_${guide.guideNumber}`, JSON.stringify(sanitized));
+      } catch (storageErr) {
+        console.warn('Erro ao salvar guia no cache local:', storageErr);
+      }
+    }
+  }
+}
+
+export async function getMedicalGuide(guideNumber: string): Promise<MedicalGuide | null> {
+  try {
+    const guideDocRef = doc(db, 'medicalGuides', guideNumber);
+    const snap = await getDoc(guideDocRef);
+    if (snap.exists()) {
+      return snap.data() as MedicalGuide;
+    }
+
+    // Try query by guideNumber field if document ID is different
+    const q = query(collection(db, 'medicalGuides'), where('guideNumber', '==', guideNumber), limit(1));
+    const qSnap = await getDocs(q);
+    if (!qSnap.empty) {
+      return qSnap.docs[0].data() as MedicalGuide;
+    }
+  } catch (err) {
+    console.warn('Erro ao buscar guia médica no Firestore:', err);
+  }
+
+  // Fallback to local storage if available
+  if (typeof window !== 'undefined') {
+    try {
+      const cached = localStorage.getItem(`alomae_guide_${guideNumber}`);
+      if (cached) {
+        return JSON.parse(cached) as MedicalGuide;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return null;
+}
+
+// ==========================================================
+// 20. Trilha de Auditoria (auditLogs)
+// ==========================================================
+export async function recordGuideAuditLog(params: {
+  action: 'medical_guide_printed' | 'issue_medical_guide';
+  actorUid: string;
+  actorName?: string;
+  actorRole?: string;
+  studentId: string;
+  studentName?: string;
+  medicalGuideId: string;
+  guideNumber: string;
+  clinicName?: string;
+  institutionId?: string;
+}): Promise<void> {
+  const auditId = `audit_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const auditRef = doc(db, 'auditLogs', auditId);
+  const now = new Date().toISOString();
+
+  const auditData = stripUndefined({
+    id: auditId,
+    institutionId: params.institutionId || 'school_horizonte_luanda',
+    actorUid: params.actorUid,
+    actorName: params.actorName || 'Encarregado',
+    actorRole: params.actorRole || 'pai',
+    action: params.action,
+    entityType: 'medical_guide',
+    entityId: params.guideNumber,
+    studentId: params.studentId,
+    studentName: params.studentName || 'Educando',
+    medicalGuideId: params.medicalGuideId,
+    guideNumber: params.guideNumber,
+    clinicName: params.clinicName,
+    description:
+      params.action === 'medical_guide_printed'
+        ? `Guia médica nº ${params.guideNumber} impressa por ${params.actorName || params.actorUid} para o educando ${params.studentName || params.studentId}.`
+        : `Guia médica nº ${params.guideNumber} emitida para o educando ${params.studentName || params.studentId}.`,
+    timestamp: now,
+    createdAt: now,
+  });
+
+  try {
+    await setDoc(auditRef, auditData);
+  } catch (err) {
+    console.warn('Erro ao registrar log de auditoria no Firestore:', err);
+    if (typeof window !== 'undefined') {
+      try {
+        const existingLogs = JSON.parse(localStorage.getItem('alomae_audit_logs') || '[]');
+        existingLogs.push(auditData);
+        localStorage.setItem('alomae_audit_logs', JSON.stringify(existingLogs.slice(-50)));
+      } catch {
+        // ignore
+      }
+    }
   }
 }
 

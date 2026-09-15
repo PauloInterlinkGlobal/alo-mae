@@ -381,7 +381,13 @@ export type NotificationType =
   | 'grade_published'
   | 'mini_report_approved'
   | 'mini_report_rejected'
-  | 'grade_approved';
+  | 'grade_approved'
+  | 'teacher_message'
+  | 'new_teacher_listing'
+  | 'listing_approved'
+  | 'listing_rejected'
+  | 'medical_guide_issued'
+  | 'medical_guide_updated';
 
 export interface SchoolNotification {
   id: string;
@@ -716,6 +722,7 @@ export interface AuditLog {
     | 'reject_mini_report'
     | 'publish_mini_report'
     | 'issue_medical_guide'
+    | 'medical_guide_printed'
     | 'cancel_medical_guide'
     | 'update_insurance'
     | 'biometric_access'

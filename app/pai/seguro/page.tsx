@@ -13,6 +13,10 @@ import {
   Building,
   ArrowRight,
   Sparkles,
+  Printer,
+  Download,
+  Eye,
+  FileText,
 } from 'lucide-react';
 import { MedicalClinic } from '@/lib/types';
 
@@ -20,10 +24,12 @@ export default function PaiSeguroPage() {
   const { selectedStudent, clinics, setActiveMedicalGuide } = useSystem();
   const [selectedClinic, setSelectedClinic] = useState<MedicalClinic>(clinics[0]);
 
-  const handleEmitGuide = (clinic: MedicalClinic) => {
+  const handleEmitGuide = (clinic: MedicalClinic, autoPrint = false) => {
+    setSelectedClinic(clinic);
     setActiveMedicalGuide({
       student: selectedStudent,
       clinic,
+      autoPrint,
     });
   };
 
@@ -77,14 +83,49 @@ export default function PaiSeguroPage() {
             </div>
           </div>
 
-          {/* Quick SOS Action */}
-          <button
-            onClick={() => handleEmitGuide(selectedClinic)}
-            className="w-full bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white py-3.5 px-4 rounded-2xl font-['Poppins',sans-serif] font-bold text-sm flex items-center justify-center gap-2.5 shadow-lg shadow-rose-950/40 transition-all cursor-pointer"
-          >
-            <HeartPulse className="w-5 h-5 animate-pulse" />
-            <span>Emitir Guia de Atendimento SOS Agora</span>
-          </button>
+          {/* Quick Actions Bar (Requisitos 33 e 39: Ver Guia, Imprimir, Baixar PDF) */}
+          <div className="space-y-2">
+            <button
+              onClick={() => handleEmitGuide(selectedClinic, false)}
+              className="w-full bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white py-3 px-4 rounded-2xl font-['Poppins',sans-serif] font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-950/40 transition-all cursor-pointer"
+            >
+              <HeartPulse className="w-5 h-5 animate-pulse" />
+              <span>Emitir Guia de Atendimento SOS</span>
+            </button>
+
+            {/* Compact & Responsive Actions (Mobile-friendly) */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => handleEmitGuide(selectedClinic, false)}
+                className="bg-white/15 hover:bg-white/25 active:scale-[0.98] text-white py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-white/10"
+                title="Visualizar documento oficial da guia médica"
+              >
+                <Eye className="w-3.5 h-3.5 text-blue-200 shrink-0" />
+                <span className="truncate">Ver Guia</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleEmitGuide(selectedClinic, true)}
+                className="bg-white/15 hover:bg-white/25 active:scale-[0.98] text-white py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-white/10"
+                title="Imprimir guia médica oficial com QR Code"
+              >
+                <Printer className="w-3.5 h-3.5 text-emerald-200 shrink-0" />
+                <span className="truncate">Imprimir</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleEmitGuide(selectedClinic, true)}
+                className="bg-white/15 hover:bg-white/25 active:scale-[0.98] text-white py-2 px-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-white/10"
+                title="Baixar guia médica em formato PDF"
+              >
+                <Download className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                <span className="truncate">Baixar PDF</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -123,7 +164,16 @@ export default function PaiSeguroPage() {
         </div>
 
         <div className="space-y-3">
-          {clinics.map((clinic) => (
+          {clinics.length === 0 ? (
+            <div className="bg-white rounded-3xl p-8 text-center border border-slate-200">
+              <HeartPulse className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm font-semibold text-slate-700">Nenhuma guia médica disponível.</p>
+              <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+                Não foram localizadas unidades hospitalares credenciadas ou apólices ativas para emissão neste momento.
+              </p>
+            </div>
+          ) : (
+            clinics.map((clinic) => (
             <div
               key={clinic.id}
               className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs hover:border-[#143A7B]/40 transition-all space-y-3"
@@ -168,26 +218,27 @@ export default function PaiSeguroPage() {
                 ))}
               </div>
 
-              {/* Actions: Direct Call & Emit Guide */}
+              {/* Actions: Direct Call & Emit Guide (Requisitos 33 e 39) */}
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
                 <a
                   href={`tel:${clinic.emergencyPhone.replace(/\s+/g, '')}`}
-                  className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-3 rounded-xl text-xs font-semibold transition-colors"
+                  className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 px-3 rounded-xl text-xs font-semibold transition-colors cursor-pointer"
                 >
                   <PhoneCall className="w-3.5 h-3.5 text-slate-500" />
                   <span>Ligar Central</span>
                 </a>
 
                 <button
-                  onClick={() => handleEmitGuide(clinic)}
-                  className="flex items-center justify-center gap-1.5 bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2 px-3 rounded-xl text-xs font-bold transition-all shadow-xs"
+                  onClick={() => handleEmitGuide(clinic, false)}
+                  className="flex items-center justify-center gap-1.5 bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2.5 px-3 rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
                 >
                   <HeartPulse className="w-3.5 h-3.5 text-rose-300" />
-                  <span>Gerar Guia</span>
+                  <span>Ver / Imprimir Guia</span>
                 </button>
               </div>
             </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
     </div>
