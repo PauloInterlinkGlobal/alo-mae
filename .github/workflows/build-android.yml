@@ -4,6 +4,12 @@ on:
   release:
     types: [ published ]
   workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
 
 jobs:
   build-and-sign:
@@ -21,15 +27,18 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+          cache-dependency-path: package-lock.json
 
       - name: Install Dependencies
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+        run: npm ci
 
       - name: TypeScript Verification
         run: npm run typecheck
 
       - name: Build Web Application
-        run: npm run build
+        run: |
+          npm run build
+          test -f out/index.html || { echo "❌ out/index.html não encontrado"; exit 1; }
 
       - name: Setup Java JDK 21
         uses: actions/setup-java@v4
@@ -67,7 +76,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd android
-          ./gradlew assembleRelease bundleRelease --stacktrace
+          ./gradlew assembleRelease bundleRelease --stacktrace --no-daemon
 
       - name: Cleanup Keystore Credentials
         if: always()
@@ -79,36 +88,51 @@ jobs:
           mkdir -p release-artifacts
           
           # Find and copy generated APK
-          find android/app/build/outputs/apk/release -name "*.apk" -exec cp {} release-artifacts/alo-mae-release.apk \;
+          APK_FILE=$(find android/app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "❌ Nenhum APK encontrado em android/app/build/outputs/apk/release"
+            exit 1
+          fi
+          echo "APK encontrado: $APK_FILE"
+          cp "$APK_FILE" release-artifacts/alo-mae-release.apk
           
           # Find and copy generated AAB
-          find android/app/build/outputs/bundle/release -name "*.aab" -exec cp {} release-artifacts/alo-mae-release.aab \;
+          AAB_FILE=$(find android/app/build/outputs/bundle/release -name "*.aab" | head -n 1)
+          if [ -z "$AAB_FILE" ]; then
+            echo "❌ Nenhum AAB encontrado em android/app/build/outputs/bundle/release"
+            exit 1
+          fi
+          echo "AAB encontrado: $AAB_FILE"
+          cp "$AAB_FILE" release-artifacts/alo-mae-release.aab
           
-          # Generate SHA256 Checksums
+          # Verify both exist and generate SHA256 Checksums
           cd release-artifacts
-          sha256sum alo-mae-release.apk alo-mae-release.aab > SHA256SUMS.txt || true
-          cat SHA256SUMS.txt || true
+          test -f alo-mae-release.apk || { echo "❌ alo-mae-release.apk não encontrado"; exit 1; }
+          test -f alo-mae-release.aab || { echo "❌ alo-mae-release.aab não encontrado"; exit 1; }
+          sha256sum alo-mae-release.apk alo-mae-release.aab > SHA256SUMS.txt
+          echo "📋 Checksums gerados:"
+          cat SHA256SUMS.txt
 
       - name: Upload Signed APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: alo-mae-release
           path: release-artifacts/alo-mae-release.apk
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload Signed AAB Artifact
         uses: actions/upload-artifact@v4
         with:
           name: alo-mae-bundle
           path: release-artifacts/alo-mae-release.aab
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Upload SHA256 Checksums
         uses: actions/upload-artifact@v4
         with:
           name: SHA256SUMS
           path: release-artifacts/SHA256SUMS.txt
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - name: Attach Assets to GitHub Release
         if: ${{ github.event_name == 'release' }}
