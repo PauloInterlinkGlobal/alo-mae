@@ -38,8 +38,7 @@ jobs:
           java-version: '21'
 
       - name: Prepare Capacitor & Android
-        run: |
-          node scripts/prepare-android-tv.mjs
+        run: node scripts/prepare-android.mjs
 
       - name: Cache Gradle Packages
         uses: actions/cache@v4
