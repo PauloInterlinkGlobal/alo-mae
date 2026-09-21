@@ -490,11 +490,11 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       mini_report_approved: 'Mini Pauta Homologada',
       mini_report_rejected: 'Mini Pauta Devolvida para Ajuste',
       teacher_message: 'Mensagem do Professor',
-      new_teacher_listing: 'Nova Pauta Submetida pelo Professor',
-      listing_approved: 'Pauta Aprovada',
-      listing_rejected: 'Pauta Rejeitada',
+      new_teacher_listing: 'Novo Anúncio de Explicações',
+      listing_approved: 'Anúncio Docente Homologado',
+      listing_rejected: 'Anúncio Docente Recusado',
       medical_guide_issued: 'Guia Médica Emitida',
-      medical_guide_updated: 'Guia Médica Actualizada',
+      medical_guide_updated: 'Atualização de Guia Médica',
     };
 
     const newNotif: SchoolNotification = {

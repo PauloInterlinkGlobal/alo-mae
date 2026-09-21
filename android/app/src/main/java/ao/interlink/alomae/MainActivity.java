@@ -1,4 +1,4 @@
-package ao.alomaae.app;
+package ao.interlink.alomae;
 
 import com.getcapacitor.BridgeActivity;
 

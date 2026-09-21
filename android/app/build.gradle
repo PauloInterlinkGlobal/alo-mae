@@ -1,7 +1,7 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "ao.alomaae.app"
+    namespace = "ao.interlink.alomae"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "ao.interlink.alomae"
