@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-android-tv:
+  build-android:
     name: Build Android Debug & Unsigned Release APKs
     runs-on: ubuntu-latest
 
@@ -22,13 +22,13 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: Install Dependencies (npm ci)
-        run: npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+      - name: Install Dependencies
+        run: npm ci
 
       - name: TypeScript Verification
         run: npm run typecheck
 
-      - name: Build Web Assets (Vite)
+      - name: Build Web Assets
         run: npm run build
 
       - name: Setup Java JDK 21
@@ -37,9 +37,9 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
 
-      - name: Prepare Capacitor & Android (Leanback)
+      - name: Prepare Capacitor & Android
         run: |
-          node scripts/prepare-android.mjs
+          node scripts/prepare-android-tv.mjs
 
       - name: Cache Gradle Packages
         uses: actions/cache@v4
@@ -57,22 +57,33 @@ jobs:
       - name: Build Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Build Unsigned Release APK
         run: |
           cd android
-          ./gradlew assembleRelease --stacktrace
+          ./gradlew assembleRelease --stacktrace --no-daemon
 
-      - name: Copy & Rename Artifacts
+      - name: Copy & Validate Artifacts
+        shell: bash
         run: |
+          set -euo pipefail
+
           mkdir -p artifacts
+
+          test -f android/app/build/outputs/apk/debug/app-debug.apk
           cp android/app/build/outputs/apk/debug/app-debug.apk artifacts/alo-mae-debug.apk
-          if [ -f "android/app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            cp android/app/build/outputs/apk/release/app-release-unsigned.apk artifacts/alo-mae-release-unsigned.apk
-          elif [ -f "android/app/build/outputs/apk/release/app-release.apk" ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk artifacts/alo-mae-release-unsigned.apk
+
+          RELEASE_APK="android/app/build/outputs/apk/release/app-release-unsigned.apk"
+
+          if [ ! -f "$RELEASE_APK" ]; then
+            RELEASE_APK="android/app/build/outputs/apk/release/app-release.apk"
           fi
+
+          test -f "$RELEASE_APK"
+          cp "$RELEASE_APK" artifacts/alo-mae-release-unsigned.apk
+
+          ls -lh artifacts/
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
@@ -86,4 +97,4 @@ jobs:
         with:
           name: alo-mae-release-unsigned
           path: artifacts/alo-mae-release-unsigned.apk
-          if-no-files-found: warn
+          if-no-files-found: error
