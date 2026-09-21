@@ -2,11 +2,6 @@
 /**
  * Prepara o projeto Android (Capacitor) para o build no CI.
  * Destino: telemóveis e tablets Android.
- *
- * Passos:
- *  1. Garante que o build web estático existe em ./out (next build com output: 'export')
- *  2. Cria a plataforma Android se a pasta ./android ainda não existir
- *  3. Sincroniza os assets web e plugins com o projeto Android (cap sync)
  */
 import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
@@ -26,11 +21,9 @@ function fail(msg) {
   process.exit(1);
 }
 
-// 1. Verificar build web
+// 1. Verificar build web estático
 if (!existsSync(path.join(webDir, 'index.html'))) {
-  fail(
-    'A pasta "out" não foi encontrada. Execute "npm run build" antes (next.config.ts usa output: "export").'
-  );
+  fail('A pasta "out" não foi encontrada. Execute "npm run build" antes (next.config.ts usa output: "export").');
 }
 
 // 2. Criar plataforma Android se necessário
