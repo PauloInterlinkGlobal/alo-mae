@@ -14,7 +14,11 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Camera, CameraOff, UserPlus, ScanFace, Trash2, Gauge, ShieldAlert,
   CheckCircle2, XCircle, Loader2, Eye, Fingerprint, Database, RefreshCw,
+  ExternalLink, RotateCw,
 } from 'lucide-react';
+import {
+  requestCameraStream, queryCameraPermission, isEmbeddedInIframe,
+} from '@/lib/biometrics/camera';
 import {
   loadHumanEngine, detectFace, getEngineStatus,
   HumanFaceCapture,
@@ -36,6 +40,11 @@ export default function PocFacialPage() {
   const [engineReady, setEngineReady] = useState(false);
   const [engineInfo, setEngineInfo] = useState(getEngineStatus());
   const [initError, setInitError] = useState<string | null>(null);
+
+  // Diagnóstico de câmara (permissões/iframe) — ver lib/biometrics/camera.ts
+  const [camError, setCamError] = useState<{ kind: string; message: string } | null>(null);
+  const [embedded, setEmbedded] = useState(false);
+  const [permState, setPermState] = useState<PermissionState | 'unsupported'>('prompt');
 
   const [gallery, setGallery] = useState<GalleryEntry[]>([]);
   const [enrollName, setEnrollName] = useState('');
@@ -62,26 +71,47 @@ export default function PocFacialPage() {
     setGallery(await listGallery());
   }, []);
 
+  // Arranque da câmara com diagnóstico preciso (reutilizável pelo botão retry)
+  const startCamera = useCallback(async () => {
+    setCamError(null);
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+
+    const res = await requestCameraStream();
+    if (res.stream) {
+      streamRef.current = res.stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = res.stream;
+        await videoRef.current.play().catch(() => {});
+      }
+      setCameraOn(true);
+    } else {
+      setCameraOn(false);
+      setCamError({ kind: res.errorKind || 'unknown', message: res.message });
+    }
+    setPermState(await queryCameraPermission());
+  }, []);
+
   // Boot: câmera + engine em paralelo
   useEffect(() => {
     let cancelled = false;
+    setEmbedded(isEmbeddedInIframe());
 
     (async () => {
+      await startCamera();
+
+      // Se o utilizador desbloquear a permissão nas definições do navegador,
+      // a câmara arranca automaticamente (sem recarregar a página).
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-          audio: false,
-        });
-        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play().catch(() => {});
+        const status = await navigator.permissions?.query?.({ name: 'camera' as PermissionName });
+        if (status && !cancelled) {
+          status.onchange = () => {
+            if (status.state === 'granted' && !streamRef.current) {
+              startCamera();
+            }
+          };
         }
-        setCameraOn(true);
-      } catch (e: any) {
-        setInitError(`Câmara indisponível: ${e?.message || e}`);
-      }
+      } catch {}
 
       try {
         await loadHumanEngine();
@@ -98,7 +128,7 @@ export default function PocFacialPage() {
       recognitionRef.current.running = false;
       streamRef.current?.getTracks().forEach((t) => t.stop());
     };
-  }, [refreshGallery]);
+  }, [refreshGallery, startCamera]);
 
   // Loop de reconhecimento (~3 FPS)
   useEffect(() => {
@@ -265,13 +295,74 @@ export default function PocFacialPage() {
             <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
 
             {!cameraOn && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70">
-                <CameraOff className="w-10 h-10 text-slate-500" />
-                <p className="text-slate-400 text-sm">{initError || 'A iniciar câmara…'}</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/85 p-6 text-center overflow-y-auto">
+                <CameraOff className={`w-10 h-10 ${camError ? 'text-rose-400' : 'text-slate-500'}`} />
+                <p className="text-sm font-medium text-slate-200 max-w-sm">
+                  {camError ? camError.message : 'A iniciar câmara…'}
+                </p>
+
+                {camError?.kind === 'denied' && (
+                  <div className="text-xs text-slate-400 space-y-3 max-w-sm">
+                    {embedded ? (
+                      <>
+                        <p>
+                          Esta página corre dentro de um <strong>iframe</strong> — muitos navegadores
+                          negam a câmara automaticamente nesse cenário, sem mostrar o pedido de permissão.
+                        </p>
+                        <a
+                          href={typeof window !== 'undefined' ? window.location.href : '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl px-3 py-2 text-xs font-medium"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" /> Abrir POC em novo separador (recomendado)
+                        </a>
+                        <p className="text-slate-500">
+                          Alternativa: clique no ícone 🎥 na barra de endereço e autorize a câmara para este site.
+                        </p>
+                      </>
+                    ) : (
+                      <ol className="list-decimal list-inside text-left space-y-1">
+                        <li>Clique no ícone da câmara na barra de endereço</li>
+                        <li>Escolha <strong>Permitir</strong> (ou remova o bloqueio em «Definições do site»)</li>
+                        <li>Toque em «Tentar novamente» abaixo</li>
+                      </ol>
+                    )}
+                  </div>
+                )}
+
+                {camError?.kind === 'in-use' && (
+                  <p className="text-xs text-slate-400 max-w-sm">Feche a outra aplicação que está a usar a câmara (Zoom/Meet/Teams) e tente de novo.</p>
+                )}
+                {camError?.kind === 'not-found' && (
+                  <p className="text-xs text-slate-400 max-w-sm">Ligue uma câmara ao dispositivo e verifique as permissões do sistema.</p>
+                )}
+                {camError?.kind === 'insecure' && (
+                  <p className="text-xs text-slate-400 max-w-sm">O navegador só expõe a câmara em páginas HTTPS.</p>
+                )}
+
+                {camError && (
+                  <button
+                    onClick={() => startCamera()}
+                    className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl px-3 py-2 text-xs font-medium"
+                  >
+                    <RotateCw className="w-3.5 h-3.5" /> Tentar novamente
+                  </button>
+                )}
+
+                {camError && permState !== 'unsupported' && (
+                  <p className="text-[10px] text-slate-600">estado da permissão: {permState}{embedded ? ' · página embutida em iframe' : ''}</p>
+                )}
               </div>
             )}
 
-            {!engineReady && cameraOn && (
+            {initError && cameraOn && (
+              <div className="absolute top-4 left-4 right-4 flex items-center gap-2 bg-rose-950/85 border border-rose-600/40 px-3 py-2 rounded-xl text-xs text-rose-200">
+                <ShieldAlert className="w-4 h-4 shrink-0" /> {initError}
+              </div>
+            )}
+
+            {!engineReady && cameraOn && !initError && (
               <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 px-3 py-2 rounded-xl text-sm">
                 <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
                 A carregar modelos biométricos…
