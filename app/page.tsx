@@ -2,27 +2,13 @@
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSystem } from '@/lib/context';
 
 export default function RootIndexPage() {
   const router = useRouter();
-  const { currentUser, isAuthenticated } = useSystem();
 
   useEffect(() => {
-    if (!isAuthenticated || !currentUser) {
-      router.replace('/login');
-    } else {
-      if (currentUser.role === 'pai' || currentUser.role === 'encarregado') {
-        router.replace('/pai/inicio');
-      } else if (currentUser.role === 'professor') {
-        router.replace('/professor/turma');
-      } else if (currentUser.role === 'instituicao' || currentUser.role === 'admin') {
-        router.replace('/admin/dashboard');
-      } else {
-        router.replace('/login');
-      }
-    }
-  }, [currentUser, isAuthenticated, router]);
+    router.replace('/login');
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-[#0D1B3D] flex items-center justify-center">

@@ -137,7 +137,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // fallback
       }
     }
-    return MOCK_USERS.pai;
+    return null;
   });
 
   const [isTerminalAuthorized, setTerminalAuthorized] = useState<boolean>(true);
