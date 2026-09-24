@@ -17,6 +17,9 @@ import {
   generateSeedEmbeddingForStudent,
 } from '@/lib/biometrics/engine';
 import { biometricAudio } from '@/lib/biometrics/audio-speech';
+import {
+  requestCameraStream, queryCameraPermission, isEmbeddedInIframe,
+} from '@/lib/biometrics/camera';
 import { offlineSyncManager } from '@/lib/biometrics/offline-sync';
 import {
   registerAttendanceBiometricEvent,
@@ -48,6 +51,8 @@ import {
   Check,
   Lock,
   ChevronRight,
+  ExternalLink,
+  RotateCw,
   Maximize2,
   Minimize2,
 } from 'lucide-react';
@@ -83,6 +88,10 @@ export default function AlunoTerminalPage() {
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [camErr, setCamErr] = useState<{ kind: string; message: string } | null>(null);
+  const [embedded, setEmbedded] = useState(false);
+  const [permState, setPermState] = useState<string>(`prompt`);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Hardware Camera & Stream
@@ -197,46 +206,48 @@ export default function AlunoTerminalPage() {
     return () => clearTimeout(timer);
   }, [confirmedStudent]);
 
-  // Initialize Camera automatically on mount
+  // Initialize Camera automatically on mount (com diagnóstico iframe/permissões)
   useEffect(() => {
+    setEmbedded(isEmbeddedInIframe());
     setIsWebcamActive(true);
   }, []);
 
-  // WebCam Stream Lifecycle
+  // WebCam Stream Lifecycle — usa helper com diagnóstico preciso
   useEffect(() => {
     let stream: MediaStream | null = null;
+    let cancelled = false;
 
-    if (isWebcamActive && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
+    if (isWebcamActive) {
       setCameraError(null);
-      navigator.mediaDevices
-        .getUserMedia({
-          video: {
-            facingMode: 'user',
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-          },
-          audio: false,
-        })
-        .then((s) => {
-          stream = s;
+      setCamErr(null);
+
+      (async () => {
+        const res = await requestCameraStream();
+        if (cancelled) return;
+
+        if (res.stream) {
+          stream = res.stream;
           if (videoRef.current) {
-            videoRef.current.srcObject = s;
+            videoRef.current.srcObject = res.stream;
             videoRef.current.play().catch(() => {});
           }
-        })
-        .catch((err) => {
-          console.warn('Erro ao aceder à câmara:', err);
-          setCameraError('Permissão da câmara negada ou câmara ocupada por outra aplicação.');
+        } else {
+          console.warn('Erro ao aceder à câmara:', res.errorName, res.message);
+          setCamErr({ kind: res.errorKind || 'unknown', message: res.message });
+          setCameraError(res.message);
           setIsWebcamActive(false);
-        });
+        }
+        setPermState(await queryCameraPermission());
+      })();
     }
 
     return () => {
+      cancelled = true;
       if (stream) {
         stream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [isWebcamActive]);
+  }, [isWebcamActive, cameraAttempt]);
 
   // Fullscreen toggle for Kiosk mode
   const toggleFullscreen = () => {
@@ -659,7 +670,12 @@ export default function AlunoTerminalPage() {
                   </div>
                   <p className="text-sm font-bold text-white">Câmara Desativada</p>
                   <button
-                    onClick={() => setIsWebcamActive(true)}
+                    onClick={() => {
+                      setCamErr(null);
+                      setCameraError(null);
+                      setCameraAttempt((a) => a + 1);
+                      setIsWebcamActive(true);
+                    }}
                     className="mt-3 px-4 py-1.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg active:scale-95 cursor-pointer"
                   >
                     Ativar Câmara
@@ -711,10 +727,54 @@ export default function AlunoTerminalPage() {
             </div>
           </div>
 
-          {cameraError && (
-            <p className="text-xs text-red-400 mt-3 text-center bg-red-950/70 px-4 py-2 rounded-xl border border-red-500/30 max-w-sm">
-              {cameraError}
-            </p>
+          {camErr && (
+            <div className="text-xs mt-3 text-center bg-red-950/70 px-4 py-3 rounded-xl border border-red-500/30 max-w-md space-y-2">
+              <p className="text-red-300 font-medium">{camErr.message}</p>
+
+              {camErr.kind === 'denied' && embedded && (
+                <>
+                  <p className="text-red-200/70">
+                    Esta página está embutida num <strong>iframe</strong> — o navegador nega a câmara
+                    automaticamente neste cenário, sem mostrar o pedido de permissão.
+                  </p>
+                  <a
+                    href={typeof window !== 'undefined' ? window.location.href : '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg px-3 py-1.5 font-medium"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" /> Abrir terminal em novo separador (recomendado)
+                  </a>
+                  <p className="text-red-200/50">Alternativa: ícone 🎥 na barra de endereço → autorizar câmara.</p>
+                </>
+              )}
+
+              {camErr.kind === 'denied' && !embedded && (
+                <p className="text-red-200/70">
+                  Clique no ícone 🎥 da barra de endereço → <strong>Permitir</strong> → e toque em «Tentar novamente».
+                </p>
+              )}
+
+              {camErr.kind === 'in-use' && (
+                <p className="text-red-200/70">Feche a outra aplicação que está a usar a câmara e tente de novo.</p>
+              )}
+
+              <button
+                onClick={() => {
+                  setCamErr(null);
+                  setCameraError(null);
+                  setCameraAttempt((a) => a + 1);
+                  setIsWebcamActive(true);
+                }}
+                className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-3 py-1.5 font-medium"
+              >
+                <RotateCw className="w-3.5 h-3.5" /> Tentar novamente
+              </button>
+
+              <p className="text-[10px] text-red-200/40">
+                permissão: {permState}{embedded ? ' · iframe' : ''}
+              </p>
+            </div>
           )}
 
           {/* Biometric Fingerprint Sensor Slot Divider */}
