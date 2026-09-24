@@ -1,6 +1,7 @@
 import { Student, AccessLog, SchoolNotification, MedicalClinic, ClassAttendanceStat } from './types';
+import { generateSeedEmbeddingForStudent } from './biometrics/engine';
 
-export const INITIAL_STUDENTS: Student[] = [
+const RAW_INITIAL_STUDENTS: Student[] = [
   {
     id: 'std-1',
     matricula: '2026-00192',
@@ -121,6 +122,11 @@ export const INITIAL_STUDENTS: Student[] = [
     insurancePolicyId: 'SEG-ALO-2024-8821',
   },
 ];
+
+export const INITIAL_STUDENTS: Student[] = RAW_INITIAL_STUDENTS.map((st) => ({
+  ...st,
+  biometricProfile: generateSeedEmbeddingForStudent(st.matricula || st.id),
+}));
 
 export const INITIAL_LOGS: AccessLog[] = [
   {

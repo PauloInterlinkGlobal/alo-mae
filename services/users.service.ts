@@ -140,6 +140,8 @@ export async function enrollTeacherService(
     title: teacher.title || 'Docente',
     classIds,
     active: true,
+    mustChangePassword: true,
+    createdBy: 'institution',
     updatedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
   }, { merge: true });

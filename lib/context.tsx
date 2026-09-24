@@ -8,6 +8,7 @@ import {
   MedicalClinic,
   ClassAttendanceStat,
   AttendanceStatus,
+  AttendanceEventType,
   NotificationType,
   UserAccount,
   UserRole,
@@ -22,6 +23,10 @@ import {
   GuiaMedica,
   Conversation,
 } from './types';
+import {
+  registerAttendanceBiometricEvent,
+  getAttendanceEventLabel,
+} from '@/services/attendance-engine.service';
 import {
   INITIAL_STUDENTS,
   INITIAL_LOGS,
@@ -56,12 +61,18 @@ import {
   getTurmas,
   getTurmasProfessores,
 } from './firebase-services';
+import {
+  loginUser,
+  logout as authLogout,
+  subscribeToAuthState,
+} from '@/services/auth.service';
 
 interface SystemContextType {
   currentUser: UserAccount | null;
+  setCurrentUser: React.Dispatch<React.SetStateAction<UserAccount | null>>;
   isAuthenticated: boolean;
-  login: (emailOrPhone: string, password?: string) => Promise<boolean>;
-  logout: () => void;
+  login: (emailOrPhone: string, password?: string, portalRole?: 'pai' | 'professor' | 'instituicao') => Promise<boolean>;
+  logout: () => Promise<void>;
   isTerminalAuthorized: boolean;
   setTerminalAuthorized: (val: boolean) => void;
 
@@ -313,6 +324,29 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [currentUser]);
 
+  // Auto sync with Firebase Auth state
+  useEffect(() => {
+    const unsub = subscribeToAuthState(async (fbUser) => {
+      if (fbUser) {
+        try {
+          const profile = await getUserProfile(fbUser.uid);
+          if (profile) {
+            setCurrentUser({
+              ...profile,
+              id: profile.uid,
+              name: profile.name || profile.nome || '',
+              phone: profile.phone || profile.telefone || '',
+              schoolName: 'Colégio Horizonte de Luanda',
+            });
+          }
+        } catch (e) {
+          console.warn('Erro ao sincronizar perfil do Firebase:', e);
+        }
+      }
+    });
+    return () => unsub();
+  }, []);
+
   // Auto dismiss toast after 5s
   useEffect(() => {
     if (toastMessage) {
@@ -323,62 +357,42 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [toastMessage]);
 
-  const login = async (emailOrPhone: string, _password?: string): Promise<boolean> => {
+  const login = async (
+    emailOrPhone: string,
+    password?: string,
+    portalRole?: 'pai' | 'professor' | 'instituicao'
+  ): Promise<boolean> => {
     if (!emailOrPhone || !emailOrPhone.trim()) return false;
 
-    const trimmedInput = emailOrPhone.trim();
-    const normalizedInput = trimmedInput.toLowerCase();
-    const normalizedDigits = trimmedInput.replace(/\D/g, '');
+    try {
+      const { user } = await loginUser(emailOrPhone, password || 'AloMae#2026', portalRole);
+      const userAccount: UserAccount = {
+        ...user,
+        id: user.uid,
+        name: user.name || user.nome || '',
+        phone: user.phone || user.telefone || '',
+        schoolName: 'Colégio Horizonte de Luanda',
+      };
 
-    // 1. Direct role key check
-    let foundUser: UserAccount | undefined = MOCK_USERS[trimmedInput as UserRole];
-
-    // 2. Search in user profiles
-    if (!foundUser) {
-      foundUser = Object.values(MOCK_USERS).find((user) => {
-        const uEmail = user.email.trim().toLowerCase();
-        const phoneStr = user.phone || user.telefone || '';
-        const uPhone = phoneStr.trim().toLowerCase();
-        const uPhoneDigits = phoneStr.replace(/\D/g, '');
-
-        if (uEmail === normalizedInput) return true;
-        if (uPhone && uPhone === normalizedInput) return true;
-        if (normalizedDigits.length >= 7 && uPhoneDigits.includes(normalizedDigits)) return true;
-        return false;
-      });
-    }
-
-    // Try Firestore profile lookup if not matched
-    if (!foundUser && trimmedInput.startsWith('user_')) {
-      const p = await getUserProfile(trimmedInput);
-      if (p) {
-        foundUser = {
-          ...p,
-          id: p.uid,
-          name: p.name || p.nome || '',
-          phone: p.phone || p.telefone || '',
-          schoolName: p.schoolId === 'school_horizonte_luanda' ? 'Colégio Horizonte de Luanda' : 'Colégio Horizonte de Luanda',
-        };
-      }
-    }
-
-    if (foundUser) {
-      setCurrentUser(foundUser);
+      setCurrentUser(userAccount);
       if (typeof window !== 'undefined') {
-        localStorage.setItem('alomae_user', JSON.stringify(foundUser));
+        localStorage.setItem('alomae_user', JSON.stringify(userAccount));
       }
+
       setToastMessage({
-        title: `Sessão iniciada como ${foundUser.role.toUpperCase()}`,
-        desc: `Bem-vindo(a), ${foundUser.name || foundUser.nome}!`,
+        title: `Sessão iniciada como ${user.role.toUpperCase()}`,
+        desc: `Bem-vindo(a), ${user.name || user.nome}!`,
         type: 'success',
       });
       return true;
+    } catch (err: any) {
+      console.warn('Falha no login:', err.message);
+      throw err;
     }
-
-    return false;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await authLogout().catch(() => null);
     setCurrentUser(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem('alomae_user');
@@ -392,77 +406,82 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const registerBiometricAccess = async (
     studentId: string,
-    type: 'entry' | 'exit',
-    method: 'facial' | 'fingerprint' | 'manual',
+    type: 'entry' | 'exit' | AttendanceEventType,
+    method: 'facial' | 'fingerprint' | 'manual' = 'facial',
     location = 'Guarita Principal — Portaria 1'
   ): Promise<AccessLog> => {
     const student = students.find((s) => s.id === studentId) || students[0];
-    const now = new Date();
-    const timeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
-    const dateStr = now.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
-    const receiptCode = `CF-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${timeStr.replace(/:/g, '')}-${student.id.toUpperCase()}`;
-
-    const newLog: AccessLog = {
-      id: `log-${Date.now()}-${student.id}`,
-      studentId: student.id,
-      studentName: student.name || student.fullName || 'Aluno',
-      studentPhoto: student.photoUrl || 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400',
-      className: student.className || 'Turma A',
-      schoolId: student.schoolId || 'school_horizonte_luanda',
-      schoolName: student.schoolName || 'Colégio Horizonte de Luanda',
-      type,
-      timestamp: timeStr,
-      date: dateStr,
-      location,
-      method,
-      receiptCode,
-      notified: true,
-      notifiedRecipient: `${student.parentName || 'Encarregado'} (${student.parentPhone || 'SMS'})`,
-      statusNote: `${(student.parentName || 'Encarregado').split(' ')[0]} Notificado via SMS / Push`,
-    };
-
-    // 1. Write AccessLog to Firestore
-    try {
-      await firestoreCreateAccessLog(newLog);
-    } catch (err) {
-      console.warn('Erro ao salvar accessLog no Firestore:', err);
-    }
-
-    // 2. Push Notification to Firestore
-    const newNotif: SchoolNotification = {
-      id: `notif-${Date.now()}`,
-      type: type === 'entry' ? 'access_entry' : 'access_exit',
-      title: type === 'entry' ? 'Entrada confirmada!' : 'Saída registrada',
-      message: `${student.name} ${type === 'entry' ? 'entrou no' : 'saiu do'} ${student.schoolName || 'Colégio'} às ${timeStr.slice(0, 5)} via ${method === 'facial' ? 'Reconhecimento Facial' : method === 'fingerprint' ? 'Biometria Digital' : 'Validação Manual'}.`,
-      studentId: student.id,
-      studentName: student.name,
-      className: student.className,
-      schoolId: student.schoolId || 'school_horizonte_luanda',
-      senderName: 'Terminal Biométrico Portaria',
-      senderRole: 'Sistema Alô mãe',
-      date: 'Hoje',
-      time: timeStr.slice(0, 5),
-      isRead: false,
-      receiptCode,
-    };
+    const eventType: AttendanceEventType =
+      type === 'entry' ? 'ENTRADA' : type === 'exit' ? 'SAIDA_OFICIAL' : (type as AttendanceEventType);
+    const mappedMethod = method === 'facial' ? 'FACIAL' : method === 'fingerprint' ? 'FINGERPRINT' : 'MANUAL';
 
     try {
-      await firestoreCreateNotification(newNotif);
+      const result = await registerAttendanceBiometricEvent({
+        studentId,
+        eventType,
+        method: mappedMethod,
+        location,
+        recordedByUid: currentUser?.uid || 'kiosk_system',
+      });
+
+      audioManager.playSuccessChime();
+      audioManager.speakConfirmation(
+        result.log.studentName,
+        type === 'entry' || type === 'ENTRADA' ? 'entry' : 'exit'
+      );
+
+      setToastMessage({
+        title: `${getAttendanceEventLabel(eventType)} — Alô mãe`,
+        desc: `${result.log.studentName} • ${result.log.timestamp} • Sincronizado no Firestore`,
+        type: 'success',
+      });
+
+      return result.log;
     } catch (err) {
-      console.warn('Erro ao salvar notificação no Firestore:', err);
+      console.warn('Erro ao registar presença via attendance engine, usando fallback local:', err);
+
+      const now = new Date();
+      const timeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
+      const dateStr = now.toLocaleDateString('pt-PT', { day: 'numeric', month: 'long', year: 'numeric' });
+      const receiptCode = `CF-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}-${timeStr.replace(/:/g, '')}-${student.id.toUpperCase()}`;
+
+      const newLog: AccessLog = {
+        id: `log-${Date.now()}-${student.id}`,
+        studentId: student.id,
+        studentName: student.name || student.fullName || 'Aluno',
+        studentPhoto: student.photoUrl || 'https://images.unsplash.com/photo-1543610892-0b1f7e6d8ac1?w=400',
+        className: student.className || 'Turma A',
+        schoolId: student.schoolId || 'school_horizonte_luanda',
+        schoolName: student.schoolName || 'Colégio Horizonte de Luanda',
+        type,
+        eventType,
+        timestamp: timeStr,
+        date: dateStr,
+        location,
+        method,
+        receiptCode,
+        notified: true,
+        notifiedRecipient: `${student.parentName || 'Encarregado'} (${student.parentPhone || 'SMS'})`,
+        statusNote: `${(student.parentName || 'Encarregado').split(' ')[0]} Notificado via SMS / Push`,
+      };
+
+      try {
+        await firestoreCreateAccessLog(newLog);
+      } catch (e) {
+        console.warn('Erro ao salvar fallback accessLog:', e);
+      }
+
+      audioManager.playSuccessChime();
+      audioManager.speakConfirmation(student.name, type === 'entry' || type === 'ENTRADA' ? 'entry' : 'exit');
+
+      setToastMessage({
+        title: `${getAttendanceEventLabel(eventType)} — Alô mãe`,
+        desc: `${student.name} • ${timeStr} • Modo Offline/Local`,
+        type: 'success',
+      });
+
+      return newLog;
     }
-
-    // Audio & UX Feedback
-    audioManager.playSuccessChime();
-    audioManager.speakConfirmation(student.name, type);
-
-    setToastMessage({
-      title: `${type === 'entry' ? 'Entrada' : 'Saída'} Confirmada — Alô mãe`,
-      desc: `${student.name} • ${timeStr} • Sincronizado no Firestore`,
-      type: 'success',
-    });
-
-    return newLog;
   };
 
   const sendTeacherNotification = async (
@@ -621,6 +640,7 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     <SystemContext.Provider
       value={{
         currentUser,
+        setCurrentUser,
         isAuthenticated: !!currentUser,
         login,
         logout,

@@ -1,4 +1,7 @@
 import { Timestamp } from 'firebase/firestore';
+import { BiometricProfile } from './biometrics/types';
+
+export type { BiometricProfile };
 
 export type UserRole = 'pai' | 'encarregado' | 'professor' | 'instituicao' | 'admin' | 'terminal';
 
@@ -52,6 +55,8 @@ export interface UserProfile {
   schoolIds?: string[];
   classIds?: string[];
   title?: string;
+  mustChangePassword?: boolean;
+  createdBy?: string;
   createdAt?: Timestamp | any;
   updatedAt?: Timestamp | any;
   lastLoginAt?: Timestamp | any;
@@ -91,6 +96,7 @@ export interface Student {
   currentClassId?: string;
   currentAcademicYearId?: string;
   biometricCode: string;
+  biometricProfile?: BiometricProfile;
   status: AttendanceStatus | StudentStatus | any;
   academicStatus?: StudentStatus;
   lastEntryTime?: string;
@@ -328,6 +334,79 @@ export interface ClassAttendanceStat {
 // ==========================================
 // 12. Entrada e Saída / Biometria (accessLogs/{accessLogId})
 // ==========================================
+export type AttendanceEventType =
+  | 'ENTRADA'
+  | 'SAIDA_TEMPORARIA'
+  | 'RETORNO'
+  | 'SAIDA_OFICIAL';
+
+export type AttendanceState =
+  | 'AUSENTE'
+  | 'PRESENTE'
+  | 'FORA_TEMPORARIAMENTE'
+  | 'SAIU_OFICIALMENTE';
+
+export interface AttendanceEventRecord {
+  id: string;
+  studentId: string;
+  studentName: string;
+  matricula?: string;
+  studentPhoto?: string;
+  schoolId: string;
+  institutionId?: string;
+  classId: string;
+  className: string;
+  deviceId: string;
+  location: string;
+  date: string;       // DD/MM/YYYY
+  dateKey: string;    // YYYY-MM-DD
+  timestamp: string;  // HH:MM:SS
+  type: AttendanceEventType;
+  method: 'FACIAL' | 'FINGERPRINT' | 'MANUAL';
+  confidence: number;
+  livenessPassed: boolean;
+  authorizationId?: string;
+  receiptCode: string;
+  synced: boolean;
+  createdAt?: Timestamp | any;
+}
+
+export interface DailyAttendanceRecord {
+  id: string; // `${studentId}_${dateKey}`
+  studentId: string;
+  studentName: string;
+  matricula?: string;
+  classId: string;
+  className: string;
+  schoolId: string;
+  institutionId?: string;
+  date: string;       // DD/MM/YYYY
+  dateKey: string;    // YYYY-MM-DD
+  firstEntryAt?: string;
+  temporaryExits: Array<{ at: string; reason?: string }>;
+  returns: Array<{ at: string }>;
+  officialExitAt?: string;
+  currentState: AttendanceState;
+  totalEvents: number;
+  lastEventAt: string;
+  lastEventType?: AttendanceEventType;
+  createdAt?: Timestamp | any;
+  updatedAt?: Timestamp | any;
+}
+
+export interface TerminalConfig {
+  deviceId: string;
+  deviceName: string;
+  schoolId: string;
+  locationName: string;
+  targetClassId: string; // 'all' or class ID
+  targetClassName?: string;
+  preferredMode: 'auto' | AttendanceEventType;
+  offlineEnabled: boolean;
+  matchThreshold: number;
+  cooldownSeconds: number;
+}
+
 export interface AccessLog {
   id: string;
   institutionId?: string;
@@ -337,7 +416,8 @@ export interface AccessLog {
   studentPhoto?: string;
   classId?: string;
   className: string;
-  type: 'entry' | 'exit';
+  type: 'entry' | 'exit' | AttendanceEventType;
+  eventType?: AttendanceEventType;
   method: 'facial' | 'fingerprint' | 'manual' | 'digital';
   location: string;
   receiptCode: string;
@@ -345,6 +425,8 @@ export interface AccessLog {
   date: string;      // DD/MM/YYYY
   recordedByUid?: string;
   deviceId?: string;
+  similarityScore?: number;
+  isOfflineStored?: boolean;
   notified?: boolean;
   notifiedRecipient?: string;
   notificationStatus?: 'pending' | 'sent' | 'failed';
@@ -727,7 +809,18 @@ export interface AuditLog {
     | 'update_insurance'
     | 'biometric_access'
     | 'send_notification'
-    | 'admin_action';
+    | 'account_created'
+    | 'first_login'
+    | 'password_change'
+    | 'password_reset'
+    | 'login'
+    | 'logout'
+    | 'user_deactivated'
+    | 'user_reactivated'
+    | 'link_student'
+    | 'unlink_student'
+    | 'admin_action'
+    | string;
   entityType: string;
   entityId: string;
   description: string;

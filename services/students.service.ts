@@ -14,8 +14,9 @@ import {
   increment,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Student, GuardianStudentLink } from '@/lib/types';
+import { Student, GuardianStudentLink, BiometricProfile } from '@/lib/types';
 import { INITIAL_STUDENTS } from '@/lib/mock-data';
+import { generateSeedEmbeddingForStudent } from '@/lib/biometrics/engine';
 
 export async function searchParentByContact(term: string): Promise<{
   uid: string;
@@ -129,6 +130,7 @@ export async function enrollStudentService(input: {
     photoUrl: input.student.photoUrl || `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=400&auto=format&fit=crop&q=80`,
     status: 'absent',
     biometricCode: input.student.biometricCode,
+    biometricProfile: generateSeedEmbeddingForStudent(matricula),
     insurancePolicyId: input.student.insurancePolicyId || 'SEG-ALO-2024-8821',
     updatedAt: serverTimestamp(),
     createdAt: serverTimestamp(),
@@ -188,6 +190,17 @@ export async function updateStudent(studentId: string, data: Partial<Student>): 
   const ref = doc(db, 'students', studentId);
   await updateDoc(ref, {
     ...data,
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function updateStudentBiometricProfile(
+  studentId: string,
+  profile: BiometricProfile
+): Promise<void> {
+  const ref = doc(db, 'students', studentId);
+  await updateDoc(ref, {
+    biometricProfile: profile,
     updatedAt: serverTimestamp(),
   });
 }

@@ -11,11 +11,18 @@ export const PaiHeader: React.FC = () => {
   const { currentUser, selectedStudent, students, setSelectedStudent, unreadCount, setActiveMedicalGuide, clinics, logout } = useSystem();
   const router = useRouter();
 
-  const myStudents = students.filter((s) => s.id === 'std-1' || s.id === 'std-2');
+  const parentStudentIds = currentUser?.studentIds || (currentUser?.studentId ? [currentUser.studentId] : []);
+  const myStudents = students.filter(
+    (s) =>
+      parentStudentIds.includes(s.id) ||
+      (s.parentUid && s.parentUid === currentUser?.uid) ||
+      (s.parentEmail && currentUser?.email && s.parentEmail.toLowerCase() === currentUser.email.toLowerCase())
+  );
+  const displayStudents = myStudents.length > 0 ? myStudents : students.slice(0, 2);
 
   const handleSOS = () => {
     setActiveMedicalGuide({
-      student: selectedStudent,
+      student: selectedStudent || displayStudents[0],
       clinic: clinics[0],
     });
   };
@@ -34,20 +41,20 @@ export const PaiHeader: React.FC = () => {
           <div className="relative group">
             <button className="flex items-center gap-2 bg-[#143A7B]/80 hover:bg-[#143A7B] px-3 py-1.5 rounded-full border border-blue-400/30 text-xs font-medium text-white transition-all">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-              <span className="truncate max-w-[120px] sm:max-w-[180px]">{selectedStudent.name}</span>
+              <span className="truncate max-w-[120px] sm:max-w-[180px]">{selectedStudent?.name || displayStudents[0]?.name || 'Aluno'}</span>
               <ChevronDown className="w-3.5 h-3.5 text-blue-200 shrink-0" />
             </button>
 
             <div className="absolute left-0 mt-1 w-64 bg-white rounded-xl shadow-xl border border-slate-200 py-1.5 hidden group-hover:block z-50 text-slate-800">
               <div className="px-3 py-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                Meus Educandos
+                Meus Educandos ({displayStudents.length})
               </div>
-              {myStudents.map((std) => (
+              {displayStudents.map((std) => (
                 <button
                   key={std.id}
                   onClick={() => setSelectedStudent(std)}
                   className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-slate-50 transition-colors ${
-                    selectedStudent.id === std.id ? 'bg-blue-50 text-[#143A7B] font-semibold' : ''
+                    selectedStudent?.id === std.id ? 'bg-blue-50 text-[#143A7B] font-semibold' : ''
                   }`}
                 >
                   <div className="flex items-center gap-2">

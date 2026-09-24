@@ -7,25 +7,23 @@ import { useSystem } from '@/lib/context';
 import { loginUser, sendPasswordReset } from '@/services/auth.service';
 import { Logo } from '@/components/LogoImg';
 import {
-  Users,
+  GraduationCap,
   Lock,
   Mail,
-  Phone,
   Eye,
   EyeOff,
   ArrowRight,
   ShieldCheck,
   CheckCircle,
   ArrowLeft,
-  ScanFace,
   AlertCircle,
 } from 'lucide-react';
 
-export default function LoginEncarregadoPage() {
+export default function LoginProfessorPage() {
   const router = useRouter();
   const { setCurrentUser } = useSystem();
 
-  const [identifier, setIdentifier] = useState<string>('');
+  const [email, setEmail] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -37,8 +35,8 @@ export default function LoginEncarregadoPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier.trim()) {
-      setErrorMsg('Por favor, informe o seu e-mail ou telefone.');
+    if (!email.trim()) {
+      setErrorMsg('Por favor, informe o seu e-mail institucional.');
       return;
     }
     if (!password) {
@@ -51,8 +49,8 @@ export default function LoginEncarregadoPage() {
     setResetSuccessMsg('');
 
     try {
-      // Authenticate strictly with role 'pai'
-      const { user, mustChangePassword } = await loginUser(identifier.trim(), password, 'pai');
+      // Authenticate strictly with role 'professor'
+      const { user, mustChangePassword } = await loginUser(email.trim(), password, 'professor');
 
       // Update global session context
       const userAccount = {
@@ -67,14 +65,13 @@ export default function LoginEncarregadoPage() {
         localStorage.setItem('alomae_user', JSON.stringify(userAccount));
       }
 
-      // Check mustChangePassword
       if (mustChangePassword) {
         router.push('/pai/alterar-senha');
       } else {
-        router.push('/pai/inicio');
+        router.push('/professor/turma');
       }
     } catch (err: any) {
-      setErrorMsg(err.message || 'Ocorreu um erro ao autenticar. Verifique a sua ligação e credenciais.');
+      setErrorMsg(err.message || 'Ocorreu um erro ao autenticar. Verifique as suas credenciais.');
       setIsLoading(false);
     }
   };
@@ -88,68 +85,56 @@ export default function LoginEncarregadoPage() {
 
     try {
       await sendPasswordReset(resetEmail.trim());
-      setResetSuccessMsg(`Um e-mail oficial com instruções de redefinição de palavra-passe foi enviado para ${resetEmail}.`);
+      setResetSuccessMsg(`Um e-mail de recuperação foi enviado para ${resetEmail}.`);
       setShowResetModal(false);
       setResetEmail('');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Não foi possível enviar o e-mail de recuperação. Verifique o endereço introduzido.');
+      setErrorMsg(err.message || 'Não foi possível enviar o e-mail de recuperação.');
     } finally {
       setIsSendingReset(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0D1B3D] text-white flex flex-col justify-between relative overflow-hidden font-['Inter',sans-serif]">
+    <div className="min-h-screen bg-[#0A1633] text-white flex flex-col justify-between relative overflow-hidden font-['Inter',sans-serif]">
       {/* Background ambient lighting */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#143A7B]/40 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-indigo-900/40 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-700/20 rounded-full blur-3xl pointer-events-none" />
 
       {/* Top Header */}
       <header className="p-4 sm:p-6 relative z-10 flex items-center justify-between max-w-6xl w-full mx-auto">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-xs text-blue-200 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-full border border-white/10 transition-colors"
-            hidden
+            className="flex items-center gap-1.5 text-xs text-indigo-200 hover:text-white bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-full border border-white/10 transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Voltar ao Portal</span>
           </Link>
           <Logo variant="light" size="sm" />
         </div>
-
-        <Link
-          href="/aluno/terminal"
-          className="flex items-center gap-2 bg-blue-950/80 hover:bg-[#143A7B] border border-blue-500/30 text-blue-200 hover:text-white px-3 py-1.5 rounded-full text-xs font-medium transition-all shadow-sm"
-          
-        >
-          <ScanFace className="w-4 h-4 text-cyan-400" />
-          <span className="hidden sm:inline">Modo Dispositivo:</span>
-          <span className="font-semibold text-white">Terminal Biométrico</span>
-        </Link>
       </header>
 
-      {/* Main Login Card Container */}
+      {/* Main Login Card */}
       <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md bg-white text-[#121C28] rounded-3xl shadow-2xl overflow-hidden border border-white/20">
           {/* Card Header */}
-          <div className="bg-[#143A7B] p-6 sm:p-7 text-white text-center relative">
+          <div className="bg-indigo-900 p-6 sm:p-7 text-white text-center relative">
             <div className="inline-flex p-3 bg-white/10 rounded-2xl mb-3 backdrop-blur-xs border border-white/15">
-              <Users className="w-8 h-8 text-blue-200" />
+              <GraduationCap className="w-8 h-8 text-indigo-200" />
             </div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200 bg-white/10 px-2.5 py-0.5 rounded-md mb-1 inline-block">
-              Portal do Encarregado
+            <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-200 bg-white/10 px-2.5 py-0.5 rounded-md mb-1 inline-block">
+              Portal do Docente
             </span>
             <h1 className="font-['Poppins',sans-serif] font-bold text-2xl tracking-tight mb-1">
-              Área da Família
+              Corpo Docente
             </h1>
-            <p className="text-blue-100 text-xs sm:text-sm">
-              Identifique-se com o seu e-mail ou número de telefone registado.
+            <p className="text-indigo-100 text-xs sm:text-sm">
+              Aceda à gestão pedagógica das suas turmas e mini pautas.
             </p>
           </div>
 
           <div className="p-6 sm:p-7">
-            {/* Messages */}
             {resetSuccessMsg && (
               <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
                 <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -164,33 +149,26 @@ export default function LoginEncarregadoPage() {
               </div>
             )}
 
-            {/* Form */}
             <form onSubmit={handleLogin} className="space-y-4">
-              {/* Email / Telefone */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                  E-mail ou Número de Telefone
+                  E-mail Institucional ou Telefone
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    {identifier.includes('@') ? (
-                      <Mail className="w-4 h-4" />
-                    ) : (
-                      <Phone className="w-4 h-4" />
-                    )}
+                    <Mail className="w-4 h-4" />
                   </div>
                   <input
                     type="text"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required
-                    placeholder="ex: fernanda.silva@email.com ou +244 923 884 912"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B] focus:border-transparent transition-all"
+                    placeholder="ex: maria.fernandes@colegiohorizonte.ao"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 focus:border-transparent transition-all"
                   />
                 </div>
               </div>
 
-              {/* Palavra-passe */}
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="block text-xs font-medium text-slate-700">
@@ -199,12 +177,12 @@ export default function LoginEncarregadoPage() {
                   <button
                     type="button"
                     onClick={() => {
-                      setResetEmail(identifier.includes('@') ? identifier : '');
+                      setResetEmail(email.includes('@') ? email : '');
                       setShowResetModal(true);
                     }}
-                    className="text-[11px] text-[#143A7B] font-medium hover:underline cursor-pointer"
+                    className="text-[11px] text-indigo-900 font-medium hover:underline cursor-pointer"
                   >
-                    Esqueceu a senha?
+                    Esqueceu?
                   </button>
                 </div>
                 <div className="relative">
@@ -217,7 +195,7 @@ export default function LoginEncarregadoPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900 focus:border-transparent transition-all"
                   />
                   <button
                     type="button"
@@ -229,11 +207,10 @@ export default function LoginEncarregadoPage() {
                 </div>
               </div>
 
-              {/* Submit CTA */}
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-2 bg-[#143A7B] hover:bg-[#0D1B3D] active:scale-[0.99] text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 transition-all cursor-pointer disabled:opacity-70"
+                className="w-full mt-2 bg-indigo-900 hover:bg-indigo-950 active:scale-[0.99] text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-indigo-950/20 transition-all cursor-pointer disabled:opacity-70"
               >
                 {isLoading ? (
                   <>
@@ -242,23 +219,23 @@ export default function LoginEncarregadoPage() {
                   </>
                 ) : (
                   <>
-                    <span>Entrar no Portal da Família</span>
+                    <span>Entrar no Portal do Docente</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
             </form>
 
-            <div className="mt-5 pt-4 border-t border-slate-100 text-center" hidden>
+            <div className="mt-5 pt-4 border-t border-slate-100 text-center">
               <p className="text-[11px] text-slate-500">
-                Não possui conta? As credenciais de encarregado são emitidas exclusivamente pela secretaria da sua instituição escolar.
+                O cadastro de professores e atribuição de turmas é efetuado pela direção pedagógica da instituição.
               </p>
               <div className="mt-3 flex items-center justify-center gap-3 text-xs">
-                <Link href="/login-prof" className="text-slate-500 hover:text-[#143A7B]">
-                  Sou Professor
+                <Link href="/login" className="text-slate-500 hover:text-indigo-900">
+                  Sou Encarregado
                 </Link>
                 <span className="text-slate-300">•</span>
-                <Link href="/login-admin" className="text-slate-500 hover:text-[#143A7B]">
+                <Link href="/login-admin" className="text-slate-500 hover:text-indigo-900">
                   Sou Instituição
                 </Link>
               </div>
@@ -267,7 +244,7 @@ export default function LoginEncarregadoPage() {
         </div>
       </main>
 
-      {/* Password Reset Modal */}
+      {/* Reset Modal */}
       {showResetModal && (
         <div className="modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
           <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl text-slate-900 border border-slate-100">
@@ -275,7 +252,7 @@ export default function LoginEncarregadoPage() {
               Recuperar Palavra-passe
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              Introduza o seu e-mail registado para receber um link seguro de redefinição de palavra-passe emitido pelo Firebase Authentication.
+              Introduza o seu e-mail institucional para receber um link de redefinição de palavra-passe.
             </p>
 
             <form onSubmit={handleSendResetPassword} className="space-y-3.5">
@@ -284,9 +261,9 @@ export default function LoginEncarregadoPage() {
                   type="email"
                   value={resetEmail}
                   onChange={(e) => setResetEmail(e.target.value)}
-                  placeholder="seu.email@exemplo.com"
+                  placeholder="seu.email@colegio.ao"
                   required
-                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B]"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-900"
                 />
               </div>
 
@@ -301,7 +278,7 @@ export default function LoginEncarregadoPage() {
                 <button
                   type="submit"
                   disabled={isSendingReset}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-[#143A7B] text-white text-xs font-semibold hover:bg-[#0D1B3D] disabled:opacity-50 transition-colors cursor-pointer"
+                  className="flex-1 py-2.5 px-3 rounded-xl bg-indigo-900 text-white text-xs font-semibold hover:bg-indigo-950 disabled:opacity-50 transition-colors cursor-pointer"
                 >
                   {isSendingReset ? 'A enviar...' : 'Enviar Link'}
                 </button>

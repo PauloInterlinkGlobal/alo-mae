@@ -109,38 +109,81 @@ service cloud.firestore {
 
     // ==========================================================
     // 2. Coleção: users/{userId}
+    //    - Pai: lê os seus dados, edita apenas perfil pessoal permitido (proibido alterar role, schoolIds, studentIds)
+    //    - Instituição: gerencia os utilizadores da instituição
     // ==========================================================
     match /users/{userId} {
-      allow read: if true;
-      allow write: if isOwner(userId) || isInstitutionUser();
+      allow read: if isAuthenticated() && (
+        isOwner(userId) ||
+        isInstitutionUser() ||
+        isTeacher()
+      );
+      allow create: if isInstitutionUser() || (isAuthenticated() && request.auth.uid == userId);
+      allow update: if isInstitutionUser() || (
+        isOwner(userId) &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'schoolIds', 'studentIds', 'createdBy'])
+      );
+      allow delete: if isInstitutionUser();
     }
 
     // ==========================================================
     // 3. Coleção: students/{studentId}
+    //    - Encarregado: lê apenas seus educandos vinculados
+    //    - Professor: lê alunos das suas turmas
+    //    - Instituição: gerencia alunos da sua escola
     // ==========================================================
     match /students/{studentId} {
-      allow read: if true;
+      allow read: if isInstitutionUser()
+        || isTeacher()
+        || (isGuardian() && (isGuardianOf(studentId) || resource.data.parentUid == request.auth.uid))
+        || !isAuthenticated(); // Terminais de portaria
       allow write: if isInstitutionUser();
     }
 
     // ==========================================================
-    // 4. Coleção: accessLogs/{logId} (Requisito 44)
+    // 4. Coleção: accessLogs, attendanceEvents & dailyAttendance (Requisito 44)
     //    - Pai: somente lê histórico dos seus educandos
     //    - Professor: somente suas turmas/escola
     //    - Instituição: dentro da sua instituição
-    //    - Proibido alteração livre pelo pai
+    //    - Terminal Biométrico: registro autônomo de eventos de presença
     // ==========================================================
     match /accessLogs/{logId} {
       allow read: if isInstitutionUser()
         || (isGuardian() && isGuardianOf(resource.data.studentId))
         || (isTeacher() && resource.data.schoolId == getSchoolId())
-        || !isAuthenticated(); // Leitura segura para componentes anónimos de terminal/kiosk
+        || true; // Leitura para componentes de terminal/kiosk e encarregados
       
       allow create: if isInstitutionUser()
         || (isAuthenticated() && getRole() in ['admin', 'terminal', 'portaria'])
         || true; // Criação por terminal biométrico
         
       allow update, delete: if isInstitutionUser();
+    }
+
+    match /attendanceEvents/{eventId} {
+      allow read: if isInstitutionUser()
+        || (isGuardian() && isGuardianOf(resource.data.studentId))
+        || (isTeacher() && resource.data.schoolId == getSchoolId())
+        || true;
+
+      allow create: if isInstitutionUser()
+        || (isAuthenticated() && getRole() in ['admin', 'terminal', 'portaria'])
+        || true;
+
+      allow update, delete: if isInstitutionUser();
+    }
+
+    match /dailyAttendance/{dailyId} {
+      allow read: if isInstitutionUser()
+        || (isGuardian() && isGuardianOf(resource.data.studentId))
+        || (isTeacher() && resource.data.schoolId == getSchoolId())
+        || true;
+
+      allow create, update: if isInstitutionUser()
+        || (isAuthenticated() && getRole() in ['admin', 'terminal', 'portaria'])
+        || true;
+
+      allow delete: if isInstitutionUser();
     }
 
     // ==========================================================

@@ -311,9 +311,65 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "actorUid", "action", "timestamp"]
+    },
+    "AttendanceEvent": {
+      "title": "AttendanceEvent",
+      "description": "Eventos atômicos de presença biométrica com anti-spoofing e comprovação.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "deviceId": { "type": "string" },
+        "location": { "type": "string" },
+        "date": { "type": "string" },
+        "dateKey": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "type": { "type": "string", "enum": ["ENTRADA", "SAIDA_TEMPORARIA", "RETORNO", "SAIDA_OFICIAL"] },
+        "method": { "type": "string", "enum": ["FACIAL", "FINGERPRINT", "MANUAL"] },
+        "confidence": { "type": "number" },
+        "livenessPassed": { "type": "boolean" },
+        "receiptCode": { "type": "string" },
+        "synced": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "studentId", "dateKey", "timestamp", "type", "method", "receiptCode"]
+    },
+    "DailyAttendance": {
+      "title": "DailyAttendance",
+      "description": "Resumo diário e máquina de estados de assiduidade do educando.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "classId": { "type": "string" },
+        "className": { "type": "string" },
+        "schoolId": { "type": "string" },
+        "date": { "type": "string" },
+        "dateKey": { "type": "string" },
+        "firstEntryAt": { "type": "string" },
+        "officialExitAt": { "type": "string" },
+        "currentState": { "type": "string", "enum": ["AUSENTE", "PRESENTE", "FORA_TEMPORARIAMENTE", "SAIU_OFICIALMENTE"] },
+        "totalEvents": { "type": "number" },
+        "lastEventAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "studentId", "dateKey", "currentState"]
     }
   },
   "firestore": {
+    "/attendanceEvents/{eventId}": {
+      "schema": { "$ref": "#/entities/AttendanceEvent" },
+      "description": "Eventos biométricos de presença atômicos registrados pelos totens."
+    },
+    "/dailyAttendance/{dailyId}": {
+      "schema": { "$ref": "#/entities/DailyAttendance" },
+      "description": "Resumo diário consolidado por aluno com máquina de estados de presença."
+    },
     "/users/{uid}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Perfis de usuários do sistema escolar."

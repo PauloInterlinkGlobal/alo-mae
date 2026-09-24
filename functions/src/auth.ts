@@ -133,6 +133,9 @@ export const enrollStudent = onCall(async (request: CallableRequest) => {
         role: 'pai',
         studentIds: admin.firestore.FieldValue.arrayUnion(studentId),
         schoolIds: admin.firestore.FieldValue.arrayUnion(schoolId),
+        active: true,
+        mustChangePassword: true,
+        createdBy: 'institution',
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       }, { merge: true });
 
@@ -257,6 +260,9 @@ export const enrollTeacher = onCall(async (request: CallableRequest) => {
       schoolId,
       title: teacher.title || 'Docente',
       classIds: admin.firestore.FieldValue.arrayUnion(...classIds),
+      active: true,
+      mustChangePassword: true,
+      createdBy: 'institution',
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       createdAt: teacherSnap.exists ? teacherSnap.data()?.createdAt : admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
