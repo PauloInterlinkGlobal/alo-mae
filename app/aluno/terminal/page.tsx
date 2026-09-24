@@ -106,8 +106,11 @@ export default function AlunoTerminalPage() {
     timestamp: string;
     receiptCode: string;
     similarity: number;
+    method: 'FACIAL' | 'FINGERPRINT';
     isOffline: boolean;
   } | null>(null);
+
+  const [fingerprintStatus, setFingerprintStatus] = useState<'standby' | 'reading' | 'connected' | 'error'>('standby');
 
   // Cooldown Protection (prevents repeated rapid scans of the same student)
   const [cooldownStudentId, setCooldownStudentId] = useState<string | null>(null);
@@ -248,7 +251,7 @@ export default function AlunoTerminalPage() {
 
   // Autonomous Biometric Recognition Execution
   const processRecognizedStudent = useCallback(
-    async (student: Student, similarity: number) => {
+    async (student: Student, similarity: number, method: 'FACIAL' | 'FINGERPRINT' = 'FACIAL') => {
       const studentId = student.id;
       const now = Date.now();
       const lastScan = recentScansRef.current.get(studentId) || 0;
@@ -307,6 +310,7 @@ export default function AlunoTerminalPage() {
         timestamp: timeStr,
         receiptCode,
         similarity,
+        method,
         isOffline: !navigator.onLine,
       });
 
@@ -316,7 +320,7 @@ export default function AlunoTerminalPage() {
           await registerAttendanceBiometricEvent({
             studentId,
             eventType,
-            method: 'FACIAL',
+            method,
             location: config.locationName,
             deviceId: config.deviceId,
             confidence: similarity,
@@ -324,14 +328,45 @@ export default function AlunoTerminalPage() {
           });
         } catch (err) {
           console.warn('Erro ao sincronizar com Firestore, enfileirando offline:', err);
-          offlineSyncManager.enqueue(studentId, eventType, 'facial', config.locationName);
+          offlineSyncManager.enqueue(studentId, eventType, method === 'FINGERPRINT' ? 'fingerprint' : 'facial', config.locationName);
         }
       } else {
-        offlineSyncManager.enqueue(studentId, eventType, 'facial', config.locationName);
+        offlineSyncManager.enqueue(studentId, eventType, method === 'FINGERPRINT' ? 'fingerprint' : 'facial', config.locationName);
       }
     },
     [config, studentStates]
   );
+
+  // External Android reader bridge. The native reader SDK must dispatch this event
+  // after matching a template locally; no raw fingerprint data enters the web layer.
+  useEffect(() => {
+    const handleFingerprintMatch = (event: Event) => {
+      const detail = (event as CustomEvent<{ studentId?: string; confidence?: number }>).detail;
+      if (!detail?.studentId) return;
+
+      const matchedStudent = activeStudentPool.find((student) => student.id === detail.studentId);
+      if (!matchedStudent) {
+        setFingerprintStatus('error');
+        biometricAudio.playWarningBeep();
+        return;
+      }
+
+      setFingerprintStatus('connected');
+      void processRecognizedStudent(matchedStudent, detail.confidence ?? 0.92, 'FINGERPRINT');
+    };
+
+    const handleFingerprintState = (event: Event) => {
+      const state = (event as CustomEvent<{ state?: 'standby' | 'reading' | 'connected' | 'error' }>).detail?.state;
+      if (state) setFingerprintStatus(state);
+    };
+
+    window.addEventListener('alomae:fingerprint-match', handleFingerprintMatch);
+    window.addEventListener('alomae:fingerprint-state', handleFingerprintState);
+    return () => {
+      window.removeEventListener('alomae:fingerprint-match', handleFingerprintMatch);
+      window.removeEventListener('alomae:fingerprint-state', handleFingerprintState);
+    };
+  }, [activeStudentPool, processRecognizedStudent]);
 
   // Real-time Camera Frame Processing Loop (Hands-Free Facial Recognition)
   useEffect(() => {
@@ -685,13 +720,19 @@ export default function AlunoTerminalPage() {
                 <div>
                   <p className="font-semibold text-xs text-white">Sensor Biométrico Digital</p>
                   <p className="text-[11px] text-slate-400 mt-0.5">
-                    Leitor USB / Bluetooth externo pronto
-                  </p>
+                    Leitor USB / Bluetooth externo • matching local
+                    </p>
+                  </div>
                 </div>
-              </div>
 
-              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-2.5 py-1 rounded-full font-bold">
-                STANDBY
+              <span className={`text-[10px] font-mono px-2.5 py-1 rounded-full font-bold ${
+                fingerprintStatus === 'error'
+                  ? 'text-rose-300 bg-rose-950/70 border border-rose-500/30'
+                  : fingerprintStatus === 'reading'
+                    ? 'text-amber-300 bg-amber-950/70 border border-amber-500/30'
+                    : 'text-emerald-400 bg-emerald-950/70 border border-emerald-500/30'
+              }`}>
+                {fingerprintStatus === 'reading' ? 'A LER' : fingerprintStatus === 'error' ? 'VERIFICAR' : fingerprintStatus === 'connected' ? 'CONECTADO' : 'STANDBY'}
               </span>
             </div>
           </div>
@@ -762,7 +803,9 @@ export default function AlunoTerminalPage() {
 
                 <div className="flex items-center justify-between">
                   <span className="text-slate-400">Método de Validação:</span>
-                  <span className="text-cyan-300 font-medium">Reconhecimento Facial On-Device</span>
+                  <span className="text-cyan-300 font-medium">
+                      {confirmedStudent.method === 'FINGERPRINT' ? 'Leitor Digital Externo' : 'Reconhecimento Facial On-Device'}
+                    </span>
                 </div>
 
                 <div className="flex items-center justify-between pt-1 border-t border-white/5">
