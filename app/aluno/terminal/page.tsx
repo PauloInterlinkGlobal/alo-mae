@@ -19,6 +19,7 @@ import {
 import { biometricAudio } from '@/lib/biometrics/audio-speech';
 import {
   requestCameraStream, queryCameraPermission, isEmbeddedInIframe,
+  captureStillViaInput, loadImageFromDataUrl,
 } from '@/lib/biometrics/camera';
 import { offlineSyncManager } from '@/lib/biometrics/offline-sync';
 import {
@@ -380,6 +381,40 @@ export default function AlunoTerminalPage() {
     },
     [config, studentStates]
   );
+
+  // FALLBACK NÍVEL 2 — foto pela câmara nativa do celular (funciona em iframe)
+  const handleNativeCameraCapture = useCallback(async () => {
+    try {
+      const shot = await captureStillViaInput();
+      if (!shot) return; // utilizador cancelou
+
+      const img = await loadImageFromDataUrl(shot.dataUrl);
+      const result = await extractBiometricFromSource(img);
+
+      if (!result || result.qualityScore < 45) {
+        setCameraError('Nenhum rosto utilizável na foto capturada. Aproxime-se e tente de novo.');
+        setCamErr({ kind: 'unknown', message: 'Nenhum rosto utilizável na foto capturada.' });
+        return;
+      }
+
+      const match = matchStudentLocally(result.embedding, activeStudentPool, {
+        threshold: config.matchThreshold || 0.78,
+        classIdFilter: config.targetClassId,
+      });
+
+      if (match && match.isMatch) {
+        const matchedStudent = activeStudentPool.find((s) => s.id === match.studentId);
+        if (matchedStudent) {
+          await processRecognizedStudent(matchedStudent, match.similarity);
+        }
+      } else {
+        setCamErr({ kind: 'unknown', message: 'Rosto não reconhecido entre os alunos desta turma.' });
+        setCameraError('Rosto não reconhecido entre os alunos desta turma.');
+      }
+    } catch (e: any) {
+      setCamErr({ kind: 'unknown', message: e?.message || 'Falha ao processar a foto.' });
+    }
+  }, [activeStudentPool, config, processRecognizedStudent]);
 
   // Real-time Camera Frame Processing Loop (Hands-Free Facial Recognition)
   useEffect(() => {
@@ -759,17 +794,28 @@ export default function AlunoTerminalPage() {
                 <p className="text-red-200/70">Feche a outra aplicação que está a usar a câmara e tente de novo.</p>
               )}
 
-              <button
-                onClick={() => {
-                  setCamErr(null);
-                  setCameraError(null);
-                  setCameraAttempt((a) => a + 1);
-                  setIsWebcamActive(true);
-                }}
-                className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-3 py-1.5 font-medium"
-              >
-                <RotateCw className="w-3.5 h-3.5" /> Tentar novamente
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <button
+                  onClick={() => {
+                    setCamErr(null);
+                    setCameraError(null);
+                    setCameraAttempt((a) => a + 1);
+                    setIsWebcamActive(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-3 py-1.5 font-medium"
+                >
+                  <RotateCw className="w-3.5 h-3.5" /> Tentar novamente
+                </button>
+                <button
+                  onClick={handleNativeCameraCapture}
+                  className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 font-medium"
+                >
+                  <Camera className="w-3.5 h-3.5" /> Usar câmara do celular (foto)
+                </button>
+              </div>
+              <p className="text-[10px] text-red-200/50">
+                Sem câmara? Coloque o dedo no <strong>Sensor Biométrico Digital</strong> abaixo — no app Android a biometria nativa do dispositivo autentica o operador.
+              </p>
 
               <p className="text-[10px] text-red-200/40">
                 permissão: {permState}{embedded ? ' · iframe' : ''}

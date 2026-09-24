@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import {
   requestCameraStream, queryCameraPermission, isEmbeddedInIframe,
+  captureStillViaInput, loadImageFromDataUrl,
 } from '@/lib/biometrics/camera';
 import {
   loadHumanEngine, detectFace, getEngineStatus,
@@ -229,6 +230,55 @@ export default function PocFacialPage() {
     ctx.strokeRect(xMin, yMin, xMax - xMin, yMax - yMin);
   };
 
+  // FALLBACK NÍVEL 2 — foto pela câmara nativa do celular (funciona em iframe)
+  const handleStillEnroll = async () => {
+    try {
+      const shot = await captureStillViaInput();
+      if (!shot) return;
+      const img = await loadImageFromDataUrl(shot.dataUrl);
+      const capture = await detectFace(img);
+      if (!capture) { alert('Nenhum rosto detetado na foto.'); return; }
+      if (capture.antispoofScore !== null && capture.antispoofScore < ANTISPOOF_MIN) {
+        alert('Possível spoof — amostra rejeitada pelo anti-spoofing.');
+        return;
+      }
+      setLastCapture(capture);
+      setPendingSamples((prev) => [...prev, capture.embedding]);
+    } catch (e: any) {
+      alert(e?.message || 'Falha ao processar a foto.');
+    }
+  };
+
+  const handleStillIdentify = async () => {
+    try {
+      const shot = await captureStillViaInput();
+      if (!shot) return;
+      const img = await loadImageFromDataUrl(shot.dataUrl);
+      const capture = await detectFace(img);
+      if (!capture) { alert('Nenhum rosto detetado na foto.'); return; }
+
+      let bestName: string | null = null;
+      let bestSim = 0;
+      for (const entry of galleryRef.current) {
+        for (const sample of entry.samples) {
+          const sim = cosineSim(capture.embedding, sample);
+          if (sim > bestSim) { bestSim = sim; bestName = entry.name; }
+        }
+      }
+      const spoof = capture.antispoofScore !== null && capture.antispoofScore < ANTISPOOF_MIN;
+      const ok = bestSim >= thresholdRef.current && !spoof;
+      setLastCapture(capture);
+      setRecognition({
+        name: ok ? bestName : null,
+        similarity: bestSim,
+        stable: ok ? 2 : 0,
+        spoof,
+      });
+    } catch (e: any) {
+      alert(e?.message || 'Falha ao processar a foto.');
+    }
+  };
+
   const handleCaptureSample = async () => {
     const capture = lastCapture || (videoRef.current ? await detectFace(videoRef.current) : null);
     if (!capture) { alert('Nenhum rosto detetado. Posicione-se e tente novamente.'); return; }
@@ -341,14 +391,25 @@ export default function PocFacialPage() {
                   <p className="text-xs text-slate-400 max-w-sm">O navegador só expõe a câmara em páginas HTTPS.</p>
                 )}
 
-                {camError && (
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {camError && (
+                    <button
+                      onClick={() => startCamera()}
+                      className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl px-3 py-2 text-xs font-medium"
+                    >
+                      <RotateCw className="w-3.5 h-3.5" /> Tentar novamente
+                    </button>
+                  )}
                   <button
-                    onClick={() => startCamera()}
-                    className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-xl px-3 py-2 text-xs font-medium"
+                    onClick={handleStillIdentify}
+                    className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-3 py-2 text-xs font-medium"
                   >
-                    <RotateCw className="w-3.5 h-3.5" /> Tentar novamente
+                    <Camera className="w-3.5 h-3.5" /> Usar câmara do celular (foto)
                   </button>
-                )}
+                </div>
+                <p className="text-[10px] text-slate-500 max-w-sm">
+                  A câmara nativa abre sem pedir permissão ao site (funciona dentro de iframes).
+                </p>
 
                 {camError && permState !== 'unsupported' && (
                   <p className="text-[10px] text-slate-600">estado da permissão: {permState}{embedded ? ' · página embutida em iframe' : ''}</p>
@@ -422,6 +483,10 @@ export default function PocFacialPage() {
                 {pendingSamples.length}/{MIN_SAMPLES}+
               </span>
             </div>
+            <button onClick={handleStillEnroll} disabled={!engineReady}
+              className="mt-2 w-full bg-slate-700 hover:bg-slate-600 disabled:opacity-40 rounded-xl py-1.5 text-xs font-medium flex items-center justify-center gap-1.5">
+              <Camera className="w-3.5 h-3.5" /> ou capturar pela câmara nativa do celular (foto)
+            </button>
             <button onClick={handleSaveEnrollment} disabled={pendingSamples.length < MIN_SAMPLES || !enrollName.trim()}
               className="mt-2 w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 rounded-xl py-2 text-sm font-medium">
               Guardar perfil biométrico

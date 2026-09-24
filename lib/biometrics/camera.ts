@@ -104,3 +104,55 @@ export async function requestCameraStream(): Promise<CameraRequestResult> {
     return { stream: null, errorKind: mapped.kind, errorName: err?.name || null, message: mapped.message };
   }
 }
+
+/**
+ * FALLBACK NÍVEL 2 — captura de foto pela câmara NATIVA do dispositivo.
+ *
+ * Usa <input type="file" capture="user">: em telemóveis abre directamente a
+ * aplicação de câmara do sistema (SEM getUserMedia — não é afectado pela
+ * política de permissões de iframe); em desktop abre o seletor de ficheiros.
+ */
+export function captureStillViaInput(): Promise<{ dataUrl: string } | null> {
+  return new Promise((resolve) => {
+    if (typeof document === 'undefined') { resolve(null); return; }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.setAttribute('capture', 'user'); // câmara frontal nativa em telemóveis
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+
+    let settled = false;
+    const finish = (value: { dataUrl: string } | null) => {
+      if (!settled) { settled = true; input.remove(); resolve(value); }
+    };
+
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) { finish(null); return; }
+      const reader = new FileReader();
+      reader.onload = () => finish({ dataUrl: String(reader.result) });
+      reader.onerror = () => finish(null);
+      reader.readAsDataURL(file);
+    };
+    input.oncancel = () => finish(null);
+
+    document.body.appendChild(input);
+    input.click();
+    // GC de segurança (5 min)
+    setTimeout(() => finish(null), 5 * 60 * 1000);
+  });
+}
+
+/**
+ * Loads a dataURL into an HTMLImageElement ready for model inference.
+ */
+export function loadImageFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Imagem inválida ou corrompida.'));
+    img.src = dataUrl;
+  });
+}

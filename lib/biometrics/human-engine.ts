@@ -109,14 +109,19 @@ export async function loadHumanEngine(): Promise<AnyHuman> {
 }
 
 /**
- * Detects the strongest face in a video frame and extracts the embedding.
+ * Detects the strongest face in a video frame or still image and extracts the embedding.
  * Returns null when no reliable face is present.
  */
-export async function detectFace(video: HTMLVideoElement): Promise<HumanFaceCapture | null> {
+export async function detectFace(
+  source: HTMLVideoElement | HTMLImageElement
+): Promise<HumanFaceCapture | null> {
   const human = await loadHumanEngine();
-  if (!video.videoWidth) return null;
 
-  const result: AnyHuman = await human.detect(video);
+  const width = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
+  const height = source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
+  if (!width) return null;
+
+  const result: AnyHuman = await human.detect(source);
 
   const faces: AnyHuman[] = result?.face || [];
   if (faces.length === 0) return null;
@@ -137,7 +142,7 @@ export async function detectFace(video: HTMLVideoElement): Promise<HumanFaceCapt
       xMax: best.box[2],
       yMax: best.box[3],
     },
-    width: video.videoWidth,
-    height: video.videoHeight,
+    width,
+    height,
   };
 }
