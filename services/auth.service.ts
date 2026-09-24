@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { auth, db } from '@/lib/firebase';
 import firebaseConfig from '@/firebase-applet-config.json';
 import { UserProfile, UserRole } from '@/lib/types';
@@ -121,30 +122,9 @@ export async function loginUser(
     const userCredential = await signInWithEmailAndPassword(auth, emailToAuth, password);
     firebaseUser = userCredential.user;
   } catch (authErr: any) {
-    // Development / demo helper: If user exists in Firestore default seed but not yet created in Auth,
-    // provision it seamlessly so developers and testers can log in immediately.
-    if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential') {
-      const qUser = query(collection(db, 'users'), where('email', '==', emailToAuth), limit(1));
-      const snapUser = await getDocs(qUser);
-      if (!snapUser.empty) {
-        try {
-          const newCred = await createUserWithEmailAndPassword(auth, emailToAuth, password);
-          firebaseUser = newCred.user;
-          // Sync UID to Firestore document
-          const existingDoc = snapUser.docs[0];
-          await setDoc(doc(db, 'users', firebaseUser.uid), {
-            ...existingDoc.data(),
-            uid: firebaseUser.uid,
-            id: firebaseUser.uid,
-            updatedAt: serverTimestamp(),
-          }, { merge: true });
-        } catch {
-          throw new Error('Utilizador não encontrado ou palavra-passe incorreta. Verifique os seus dados de acesso.');
-        }
-      } else {
-        throw new Error('Credenciais incorretas. Verifique o seu e-mail/telefone e palavra-passe.');
-      }
-    } else if (authErr.code === 'auth/too-many-requests') {
+    // SEGURANÇA (ADR 0004 · P0-1): nunca criar contas Auth no caminho de login.
+    // Contas são provisionadas exclusivamente por Cloud Functions (Admin SDK).
+    if (authErr.code === 'auth/too-many-requests') {
       throw new Error('Muitas tentativas falhadas. Por favor, aguarde alguns minutos e tente novamente.');
     } else {
       throw new Error('Utilizador não encontrado ou palavra-passe incorreta. Verifique os seus dados de acesso.');
@@ -174,19 +154,10 @@ export async function loginUser(
   }
 
   if (!profileData) {
-    // If no Firestore profile exists, create one with default role 'pai'
-    profileData = {
-      uid: firebaseUser.uid,
-      name: firebaseUser.displayName || emailToAuth.split('@')[0],
-      email: emailToAuth,
-      role: 'pai',
-      active: true,
-      mustChangePassword: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      lastLoginAt: serverTimestamp(),
-    };
-    await setDoc(doc(db, 'users', firebaseUser.uid), profileData, { merge: true });
+    // SEGURANÇA (ADR 0004 · P1-6): sem perfil criado pela instituição, o acesso é negado.
+    // O cliente nunca auto-cria perfis — perfil nasce nas Cloud Functions de enrolment.
+    await fbSignOut(auth);
+    throw new Error('Esta conta não possui perfil no Alô Mãe. Contacte a administração da instituição.');
   }
 
   // 3. Verify Account Active Status
@@ -230,7 +201,7 @@ export async function loginUser(
 
   // 6. Record Audit Log
   await recordAuditLog({
-    institutionId: profileData.schoolId || profileData.institutionId || 'inst_horizonte_01',
+    institutionId: profileData.schoolId || profileData.institutionId || 'sem_escola',
     actorUid: firebaseUser.uid,
     actorName: profileData.name || profileData.email,
     actorRole: profileData.role,
@@ -273,7 +244,7 @@ export async function updateUserPassword(newPassword: string): Promise<void> {
 
   // 3. Audit Log
   await recordAuditLog({
-    institutionId: 'inst_horizonte_01',
+    institutionId: 'system',
     actorUid: currentUser.uid,
     actorName: currentUser.displayName || currentUser.email || 'Utilizador',
     actorRole: 'user',
@@ -296,7 +267,7 @@ export async function sendPasswordReset(email: string): Promise<void> {
   await fbSendPasswordResetEmail(auth, email.trim().toLowerCase());
 
   await recordAuditLog({
-    institutionId: 'inst_horizonte_01',
+    institutionId: 'system',
     actorUid: auth.currentUser?.uid || 'anonymous',
     actorName: email.trim(),
     actorRole: 'anonymous',
@@ -338,10 +309,14 @@ export async function createManagedUser(params: {
     throw new Error('O número de telefone é obrigatório.');
   }
 
-  // If no email provided, generate a dedicated school domain login email for the user
+  // SEGURANÇA (ADR 0004 · P0-2): e-mail real é o identificador de credencial.
+  // Nunca gerar e-mails sintéticos (ex.: pai_244...@escola.alomae.ao) — quebram
+  // recuperação de conta e comunicação. O telefone é campo de contacto.
+  if (!params.email?.trim() || !params.email.includes('@')) {
+    throw new Error('O e-mail é obrigatório para criar o acesso. Se o encarregado não tiver e-mail, crie uma conta de e-mail com ele antes de o cadastrar.');
+  }
+  const normalizedEmail = params.email.trim().toLowerCase();
   const cleanPhone = cleanPhoneNumber(phone);
-  const normalizedEmail = params.email?.trim().toLowerCase() ||
-    `${role}_${cleanPhone.replace('+', '')}@escola.alomae.ao`;
 
   // 1. Check if user already exists in Firestore by email or phone
   const qEmail = query(collection(db, 'users'), where('email', '==', normalizedEmail), limit(1));
@@ -452,7 +427,7 @@ export async function toggleUserActiveStatus(uid: string, active: boolean): Prom
   });
 
   await recordAuditLog({
-    institutionId: 'inst_horizonte_01',
+    institutionId: 'system',
     actorUid: currentAdmin?.uid || 'admin',
     actorName: currentAdmin?.displayName || currentAdmin?.email || 'Administrador',
     actorRole: 'instituicao',
@@ -519,7 +494,7 @@ export async function dissociateStudentFromParent(parentUid: string, studentId: 
   });
 
   await recordAuditLog({
-    institutionId: 'inst_horizonte_01',
+    institutionId: 'system',
     actorUid: auth.currentUser?.uid || 'admin',
     actorName: auth.currentUser?.displayName || 'Administrador',
     actorRole: 'instituicao',
@@ -545,7 +520,7 @@ export async function reissueCredentials(uid: string): Promise<string> {
   });
 
   await recordAuditLog({
-    institutionId: 'inst_horizonte_01',
+    institutionId: 'system',
     actorUid: currentAdmin?.uid || 'admin',
     actorName: currentAdmin?.displayName || 'Administrador',
     actorRole: 'instituicao',

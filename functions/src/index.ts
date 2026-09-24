@@ -12,6 +12,7 @@ export {
   provisionTerminalDevice,
   provisionTeacherClass,
   linkParentToStudent,
+  reissueUserPassword,
 } from './auth';
 
 // Exportar Triggers Reativos do Firestore

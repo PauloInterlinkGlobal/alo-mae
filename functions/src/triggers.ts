@@ -175,7 +175,7 @@ export const onMiniPautaApproved = onDocumentUpdated('miniPautas/{pautaId}', asy
   if (!beforeData || !afterData) return;
 
   if (beforeData.status !== 'approved' && afterData.status === 'approved') {
-    const { studentId, studentName, period, average, classId, schoolId, professorName, grades } = afterData;
+    const { studentId, studentName, period, average, classId, schoolId, professorName } = afterData;
 
     const notifId = `notif_pauta_${event.params.pautaId}`;
     const notificationData = {

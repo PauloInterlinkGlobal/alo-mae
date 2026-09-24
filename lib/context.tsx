@@ -424,19 +424,26 @@ export const SystemProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         recordedByUid: currentUser?.uid || 'kiosk_system',
       });
 
+      // Tentativas negadas não geram AccessLog — propagar erro ao chamador
+      // (o catch abaixo usa o fallback local de registo).
+      const accessLog = result.log;
+      if (!accessLog) {
+        throw new Error(`Acesso não autorizado (${result.event.reasonCode || 'ACESSO_REJEITADO'}).`);
+      }
+
       audioManager.playSuccessChime();
       audioManager.speakConfirmation(
-        result.log.studentName,
+        accessLog.studentName,
         type === 'entry' || type === 'ENTRADA' ? 'entry' : 'exit'
       );
 
       setToastMessage({
         title: `${getAttendanceEventLabel(eventType)} — Alô mãe`,
-        desc: `${result.log.studentName} • ${result.log.timestamp} • Sincronizado no Firestore`,
+        desc: `${accessLog.studentName} • ${accessLog.timestamp} • Sincronizado no Firestore`,
         type: 'success',
       });
 
-      return result.log;
+      return accessLog;
     } catch (err) {
       console.warn('Erro ao registar presença via attendance engine, usando fallback local:', err);
 

@@ -19,10 +19,39 @@ import {
   DailyAttendanceRecord,
   AttendanceEventType,
   AttendanceState,
+  AttendanceSchedule,
   AccessLog,
   Student,
   SchoolNotification,
 } from '@/lib/types';
+
+/**
+ * Cronograma padrão (fallback seguro) — instituições configuram via
+ * schoolSettings/attendanceSchedule; o terminal propaga em TerminalConfig.
+ */
+export const DEFAULT_ATTENDANCE_SCHEDULE: AttendanceSchedule = {
+  morning: {
+    entryStart: '07:00',
+    entryEnd: '09:00',
+    officialExitStart: '12:00',
+    officialExitEnd: '13:00',
+  },
+  afternoon: {
+    entryStart: '12:00',
+    entryEnd: '14:00',
+    officialExitStart: '17:00',
+    officialExitEnd: '18:00',
+  },
+};
+
+function minutesFromHHMM(hhmm: string, fallbackMinutes: number): number {
+  const parts = hhmm?.split(':');
+  if (!parts || parts.length !== 2) return fallbackMinutes;
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1], 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return fallbackMinutes;
+  return h * 60 + m;
+}
 
 /**
  * Determines the next appropriate attendance event according to the state machine.
@@ -32,19 +61,24 @@ import {
  * - PRESENTE -> SAIDA_TEMPORARIA -> FORA_TEMPORARIAMENTE
  * - FORA_TEMPORARIAMENTE -> RETORNO -> PRESENTE
  * - PRESENTE (or FORA_TEMPORARIAMENTE) -> SAIDA_OFICIAL -> SAIU_OFICIALMENTE
+ * - SAIU_OFICIALMENTE -> ACESSO_REJEITADO (reentryPolicy 'block', default)
+ *                       | ENTRADA (reentryPolicy 'allow', ex.: estudo vespertino)
  */
 export function evaluateNextAttendanceEvent(
   currentState: AttendanceState = 'AUSENTE',
-  modePreference: 'auto' | AttendanceEventType = 'auto'
+  modePreference: 'auto' | AttendanceEventType = 'auto',
+  schedule: AttendanceSchedule = DEFAULT_ATTENDANCE_SCHEDULE,
+  reentryPolicy: 'block' | 'allow' = 'block'
 ): AttendanceEventType {
   if (modePreference !== 'auto') {
     return modePreference;
   }
 
   const now = new Date();
-  const currentHour = now.getHours();
-  const currentMin = now.getMinutes();
-  const isAfternoonOrDismissal = currentHour >= 12 && (currentHour > 12 || currentMin >= 30);
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const dismissalStart = minutesFromHHMM(schedule.morning.officialExitStart, 12 * 60 + 30);
+
+  const isAfternoonOrDismissal = nowMinutes >= dismissalStart;
 
   switch (currentState) {
     case 'AUSENTE':
@@ -58,8 +92,10 @@ export function evaluateNextAttendanceEvent(
       return isAfternoonOrDismissal ? 'SAIDA_OFICIAL' : 'SAIDA_TEMPORARIA';
 
     case 'SAIU_OFICIALMENTE':
-      // Re-entry or evening study session
-      return 'ENTRADA';
+      // REGRA (auditoria §5): após a saída oficial a entrada é bloqueada por defeito
+      // e a tentativa é registada (ACESSO_REJEITADO). 'allow' fica para modos
+      // especiais configurados pela instituição (ex.: estudo vespertino).
+      return reentryPolicy === 'allow' ? 'ENTRADA' : 'ACESSO_REJEITADO';
 
     default:
       return 'ENTRADA';
@@ -67,9 +103,13 @@ export function evaluateNextAttendanceEvent(
 }
 
 /**
- * Maps the executed event to the resulting attendance state
+ * Maps the executed event to the resulting attendance state.
+ * ACESSO_REJEITADO nunca altera o estado — devolve o estado atual.
  */
-export function getNewAttendanceState(eventType: AttendanceEventType): AttendanceState {
+export function getNewAttendanceState(
+  eventType: AttendanceEventType,
+  currentState: AttendanceState = 'AUSENTE'
+): AttendanceState {
   switch (eventType) {
     case 'ENTRADA':
     case 'RETORNO':
@@ -78,6 +118,8 @@ export function getNewAttendanceState(eventType: AttendanceEventType): Attendanc
       return 'FORA_TEMPORARIAMENTE';
     case 'SAIDA_OFICIAL':
       return 'SAIU_OFICIALMENTE';
+    case 'ACESSO_REJEITADO':
+      return currentState;
   }
 }
 
@@ -94,7 +136,90 @@ export function getAttendanceEventLabel(type: AttendanceEventType): string {
       return 'Retorno à Sala de Aula';
     case 'SAIDA_OFICIAL':
       return 'Saída Oficial Registada';
+    case 'ACESSO_REJEITADO':
+      return 'Entrada Não Autorizada';
   }
+}
+
+/**
+ * Registers a denied access attempt (e.g. re-entry after official exit).
+ * Writes attendanceEvents (type ACESSO_REJEITADO) + auditLogs only —
+ * NO state change, NO parent notification, NO dailyAttendance mutation.
+ */
+export async function registerDeniedAttendanceAttempt(
+  params: RegisterAttendanceParams
+): Promise<AttendanceEventRecord> {
+  const {
+    studentId,
+    method = 'FACIAL',
+    location = 'Portão Principal - Terminal #01',
+    deviceId = 'terminal-01',
+    confidence = 0.96,
+    livenessPassed = true,
+    reasonCode = 'REENTRY_AFTER_OFFICIAL_EXIT',
+  } = params;
+
+  const studentRef = doc(db, 'students', studentId);
+  const studentSnap = await getDoc(studentRef);
+  if (!studentSnap.exists()) {
+    throw new Error(`Estudante [${studentId}] não encontrado na base de dados.`);
+  }
+
+  const student = studentSnap.data() as Student;
+  const studentName = student.fullName || student.name || 'Aluno';
+  const className = student.className || '';
+  const classId = student.currentClassId || student.classId || '';
+  const schoolId = student.schoolId || student.institutionId || '';
+  const institutionId = student.institutionId || schoolId;
+  const photoUrl = student.photoUrl || student.foto_biometrica_url || '';
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const dateStr = now.toLocaleDateString('pt-PT');
+  const dateKey = now.toISOString().split('T')[0];
+
+  const deniedRef = doc(collection(db, 'attendanceEvents'));
+  const deniedRecord: AttendanceEventRecord = {
+    id: deniedRef.id,
+    studentId,
+    studentName,
+    matricula: student.matricula,
+    studentPhoto: photoUrl,
+    schoolId,
+    institutionId,
+    classId,
+    className,
+    deviceId,
+    location,
+    date: dateStr,
+    dateKey,
+    timestamp: timeStr,
+    type: 'ACESSO_REJEITADO',
+    method,
+    confidence,
+    livenessPassed,
+    reasonCode,
+    receiptCode: `REC-DENIED-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}${now.getDate().toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`,
+    synced: true,
+    createdAt: serverTimestamp(),
+  };
+
+  const batch = writeBatch(db);
+  batch.set(deniedRef, deniedRecord);
+  batch.set(doc(collection(db, 'auditLogs')), {
+    institutionId: schoolId || 'sem_escola',
+    actorUid: 'terminal_system',
+    actorName: `Terminal (${deviceId})`,
+    actorRole: 'terminal',
+    action: 'access_denied',
+    entityType: 'attendanceEvents',
+    entityId: deniedRef.id,
+    description: `Tentativa de acesso negada para ${studentName} — motivo: ${reasonCode}`,
+    timestamp: serverTimestamp(),
+  });
+  await batch.commit();
+
+  return deniedRecord;
 }
 
 export interface RegisterAttendanceParams {
@@ -107,6 +232,8 @@ export interface RegisterAttendanceParams {
   confidence?: number;
   livenessPassed?: boolean;
   authorizationId?: string;
+  /** Motivo estruturado quando eventType = 'ACESSO_REJEITADO' */
+  reasonCode?: string;
   recordedByUid?: string;
 }
 
@@ -119,7 +246,7 @@ export async function registerAttendanceBiometricEvent(
 ): Promise<{
   event: AttendanceEventRecord;
   daily: DailyAttendanceRecord;
-  log: AccessLog;
+  log: AccessLog | null;
 }> {
   const {
     studentId,
@@ -186,7 +313,19 @@ export async function registerAttendanceBiometricEvent(
     ? params.eventType
     : evaluateNextAttendanceEvent(dailyData.currentState, params.preferredMode || 'auto');
 
-  const newCurrentState = getNewAttendanceState(effectiveEventType);
+  // 3.a Tentativa negada (ex.: nova entrada após saída oficial):
+  //     regista o evento de auditoria SEM alterar estado, SEM notificar o
+  //     encarregado e SEM escrever dailyAttendance/accessLogs.
+  if (effectiveEventType === 'ACESSO_REJEITADO') {
+    const deniedRecord = await registerDeniedAttendanceAttempt({
+      ...params,
+      eventType: 'ACESSO_REJEITADO',
+      reasonCode: params.reasonCode || 'REENTRY_AFTER_OFFICIAL_EXIT',
+    });
+    return { event: deniedRecord, daily: dailyData, log: null };
+  }
+
+  const newCurrentState = getNewAttendanceState(effectiveEventType, dailyData.currentState);
 
   // 4. Update Daily Attendance Aggregation
   const updatedDaily: DailyAttendanceRecord = {

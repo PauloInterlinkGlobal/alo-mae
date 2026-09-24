@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
 import { onCall, HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { CustomClaims } from './types';
 
@@ -10,6 +11,15 @@ const db = admin.firestore();
  */
 export async function setUserCustomClaims(uid: string, claims: CustomClaims): Promise<void> {
   await auth.setCustomUserClaims(uid, claims);
+}
+
+/**
+ * CSPRNG temporary password (ADR 0004 · P0-4).
+ * Garante presença de maiúscula, minúscula e dígito.
+ */
+export function generateSecureTemporaryPassword(): string {
+  const raw = crypto.randomBytes(12).toString('base64url').replace(/[-_]/g, 'x');
+  return `AloMae#${raw}9aA`;
 }
 
 /**
@@ -372,4 +382,66 @@ export const linkParentToStudent = onCall(async (request: CallableRequest) => {
   }, { merge: true });
 
   return { success: true };
+});
+
+/**
+ * HTTPS Callable: reissueUserPassword (v3)
+ * Reemite credenciais temporárias para um utilizador da mesma instituição.
+ * SEGURANÇA (ADR 0004 · P0-3): apenas o Admin SDK pode alterar a palavra-passe
+ * de outro utilizador; o cliente nunca gera nem aplica esta senha.
+ */
+export const reissueUserPassword = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'É necessária autenticação para reemitir credenciais.');
+  }
+
+  const callerRole = request.auth.token.role;
+  const callerSchoolId = request.auth.token.schoolId as string | undefined;
+
+  if (callerRole !== 'instituicao' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', 'Apenas a instituição pode reemitir credenciais.');
+  }
+
+  const { uid } = request.data as { uid?: string };
+  if (!uid) {
+    throw new HttpsError('invalid-argument', 'O uid do utilizador é obrigatório.');
+  }
+
+  const targetSnap = await db.collection('users').doc(uid).get();
+  if (!targetSnap.exists) {
+    throw new HttpsError('not-found', 'Utilizador não encontrado.');
+  }
+
+  const target = targetSnap.data() || {};
+  const targetSchools: string[] = [
+    ...(Array.isArray(target.schoolIds) ? target.schoolIds : []),
+    ...(target.schoolId ? [target.schoolId] : []),
+  ];
+  if (callerRole !== 'admin' && callerSchoolId && targetSchools.length > 0 && !targetSchools.includes(callerSchoolId)) {
+    throw new HttpsError('permission-denied', 'Este utilizador pertence a outra instituição.');
+  }
+
+  const temporaryPassword = generateSecureTemporaryPassword();
+  await auth.updateUser(uid, { password: temporaryPassword });
+  await db.collection('users').doc(uid).set(
+    {
+      mustChangePassword: true,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await db.collection('auditLogs').add({
+    institutionId: callerSchoolId || targetSchools[0] || 'system',
+    actorUid: request.auth.uid,
+    actorName: request.auth.token.name || request.auth.token.email || 'Administrador',
+    actorRole: callerRole,
+    action: 'password_reset',
+    entityType: 'users',
+    entityId: uid,
+    description: `Credenciais temporárias reemitidas (server-side) para o utilizador ${uid}`,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { success: true, temporaryPassword };
 });

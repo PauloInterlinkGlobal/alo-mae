@@ -20,6 +20,7 @@ import { biometricAudio } from '@/lib/biometrics/audio-speech';
 import { offlineSyncManager } from '@/lib/biometrics/offline-sync';
 import {
   registerAttendanceBiometricEvent,
+  registerDeniedAttendanceAttempt,
   evaluateNextAttendanceEvent,
   getAttendanceEventLabel,
 } from '@/services/attendance-engine.service';
@@ -107,6 +108,8 @@ export default function AlunoTerminalPage() {
     receiptCode: string;
     similarity: number;
     isOffline: boolean;
+    denied?: boolean;
+    reasonLabel?: string;
   } | null>(null);
 
   // Cooldown Protection (prevents repeated rapid scans of the same student)
@@ -268,7 +271,7 @@ export default function AlunoTerminalPage() {
 
       // Determine current attendance state
       const curState = studentStates.get(studentId) || 'AUSENTE';
-      const eventType = evaluateNextAttendanceEvent(curState, config.preferredMode);
+      const eventType = evaluateNextAttendanceEvent(curState, config.preferredMode, config.attendanceSchedule, config.reentryPolicy || 'block');
       const eventLabel = getAttendanceEventLabel(eventType);
 
       const timeNow = new Date();
@@ -278,6 +281,40 @@ export default function AlunoTerminalPage() {
         second: '2-digit',
       });
       const receiptCode = `REC-${timeNow.getFullYear()}${(timeNow.getMonth() + 1).toString().padStart(2, '0')}${timeNow.getDate().toString().padStart(2, '0')}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      // REGRA (auditoria §5): nova entrada após SAÍDA OFICIAL é bloqueada.
+      // Regista a tentativa (online direto / offline na fila) e informa o aluno.
+      if (eventType === 'ACESSO_REJEITADO') {
+        biometricAudio.playWarningBeep();
+        setConfirmedStudent({
+          student,
+          eventType,
+          eventLabel,
+          timestamp: timeStr,
+          receiptCode,
+          similarity,
+          isOffline: !navigator.onLine,
+          denied: true,
+          reasonLabel: 'Este aluno já realizou a saída oficial hoje.',
+        });
+
+        if (navigator.onLine) {
+          registerDeniedAttendanceAttempt({
+            studentId,
+            reasonCode: 'REENTRY_AFTER_OFFICIAL_EXIT',
+            deviceId: config.deviceId,
+            method: 'FACIAL',
+            confidence: similarity,
+            location: config.locationName,
+          }).catch((err) => {
+            console.warn('Falha ao registar tentativa negada, enfileirando:', err);
+            offlineSyncManager.enqueue(studentId, 'ACESSO_REJEITADO', 'facial', config.locationName, config.deviceId, similarity, 'REENTRY_AFTER_OFFICIAL_EXIT');
+          });
+        } else {
+          offlineSyncManager.enqueue(studentId, 'ACESSO_REJEITADO', 'facial', config.locationName, config.deviceId, similarity, 'REENTRY_AFTER_OFFICIAL_EXIT');
+        }
+        return;
+      }
 
       // Audio feedback & Voice synthesis
       biometricAudio.playSuccessChime();
@@ -343,6 +380,18 @@ export default function AlunoTerminalPage() {
     const runRecognitionLoop = async () => {
       if (!videoRef.current || videoRef.current.readyState < 2 || isProcessingFrame) {
         if (isMounted) loopTimeout = setTimeout(runRecognitionLoop, 200);
+        return;
+      }
+
+      // CORREÇÃO D2: pool vazio → reconhecimento desativado (nunca expandir escopo)
+      if (activeStudentPool.length === 0) {
+        setDetectedBox(null);
+        setLivenessStatus({
+          isLive: false,
+          score: 0,
+          text: 'Nenhum aluno carregado para esta turma — verifique a configuração do terminal.',
+        });
+        if (isMounted) loopTimeout = setTimeout(runRecognitionLoop, 500);
         return;
       }
 
@@ -412,6 +461,8 @@ export default function AlunoTerminalPage() {
         return 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40';
       case 'SAIDA_OFICIAL':
         return 'bg-purple-500/20 text-purple-300 border-purple-500/40';
+      case 'ACESSO_REJEITADO':
+        return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
     }
   };
 
@@ -700,9 +751,9 @@ export default function AlunoTerminalPage() {
         {/* RECOGNITION CONFIRMED MODAL / OVERLAY CARD (Appears only after identification) */}
         {confirmedStudent && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-            <div className="bg-gradient-to-br from-[#0D1D3F] via-[#0A1633] to-[#070E22] border-2 border-emerald-500 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-[0_0_70px_rgba(16,185,129,0.35)] text-center relative overflow-hidden animate-scale-up">
+            <div className={`bg-gradient-to-br from-[#0D1D3F] via-[#0A1633] to-[#070E22] border-2 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl text-center relative overflow-hidden animate-scale-up ${confirmedStudent.denied ? 'border-rose-500 shadow-[0_0_70px_rgba(244,63,94,0.30)]' : 'border-emerald-500 shadow-[0_0_70px_rgba(16,185,129,0.35)]'}`}>
               {/* Top Accent Ribbon */}
-              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-cyan-400 via-emerald-400 to-blue-500" />
+              <div className={`absolute top-0 inset-x-0 h-1.5 ${confirmedStudent.denied ? 'bg-gradient-to-r from-rose-500 via-red-400 to-orange-500' : 'bg-gradient-to-r from-cyan-400 via-emerald-400 to-blue-500'}`} />
 
               {/* Close Button */}
               <button
@@ -712,14 +763,14 @@ export default function AlunoTerminalPage() {
                 <X className="w-4 h-4" />
               </button>
 
-              {/* Success Icon */}
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center text-emerald-300 mx-auto mb-4 shadow-lg shadow-emerald-500/20">
-                <CheckCircle2 className="w-9 h-9" />
+              {/* Result Icon */}
+              <div className={`w-16 h-16 rounded-full border-2 flex items-center justify-center mx-auto mb-4 ${confirmedStudent.denied ? 'bg-rose-500/20 border-rose-400 text-rose-300 shadow-lg shadow-rose-500/20' : 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-lg shadow-emerald-500/20'}`}>
+                {confirmedStudent.denied ? <AlertTriangle className="w-9 h-9" /> : <CheckCircle2 className="w-9 h-9" />}
               </div>
 
               {/* Main Headline */}
-              <span className="text-xs font-bold uppercase tracking-widest text-emerald-400 block mb-1">
-                ✓ Reconhecimento Confirmado
+              <span className={`text-xs font-bold uppercase tracking-widest block mb-1 ${confirmedStudent.denied ? 'text-rose-400' : 'text-emerald-400'}`}>
+                {confirmedStudent.denied ? '✕ Acesso Não Autorizado' : '✓ Reconhecimento Confirmado'}
               </span>
 
               {/* Student Photo & Identity */}
@@ -773,17 +824,26 @@ export default function AlunoTerminalPage() {
                 </div>
               </div>
 
-              {/* Notification Guarantee */}
-              <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl px-3 py-2 text-center text-xs text-emerald-200">
-                <p className="font-medium">
-                  Encarregado notificado instantaneamente via Alô Mãe
-                </p>
-                {confirmedStudent.isOffline && (
-                  <p className="text-[10px] text-amber-300 mt-0.5">
-                    ✓ Registado em cache local offline (Sincroniza ao reconectar)
+              {/* Notification / Audit Guarantee */}
+              {confirmedStudent.denied ? (
+                <div className="bg-rose-950/40 border border-rose-500/30 rounded-xl px-3 py-2 text-center text-xs text-rose-200">
+                  <p className="font-medium">{confirmedStudent.reasonLabel}</p>
+                  <p className="text-[10px] text-rose-300/80 mt-0.5">
+                    Tentativa registada para auditoria da instituição.
                   </p>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl px-3 py-2 text-center text-xs text-emerald-200">
+                  <p className="font-medium">
+                    Encarregado notificado instantaneamente via Alô Mãe
+                  </p>
+                  {confirmedStudent.isOffline && (
+                    <p className="text-[10px] text-amber-300 mt-0.5">
+                      ✓ Registado em cache local offline (Sincroniza ao reconectar)
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Action Button */}
               <button

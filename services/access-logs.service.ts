@@ -61,5 +61,9 @@ export async function registerBiometricAccess(
     recordedByUid,
   });
 
+  // Caminho legado: tentativas negadas não geram AccessLog — sinalizar ao chamador.
+  if (!result.log) {
+    throw new Error(`Acesso não autorizado (${result.event.reasonCode || 'ACESSO_REJEITADO'}). Nenhum registo de acesso criado.`);
+  }
   return result.log;
 }

@@ -338,7 +338,59 @@ export type AttendanceEventType =
   | 'ENTRADA'
   | 'SAIDA_TEMPORARIA'
   | 'RETORNO'
-  | 'SAIDA_OFICIAL';
+  | 'SAIDA_OFICIAL'
+  | 'ACESSO_REJEITADO';
+
+/** Motivos estruturados de saída temporária (auditoria §7 / ADR 0002 §3-A) */
+export type ExitReasonCode =
+  | 'DOENCA'
+  | 'EMERGENCIA_MEDICA'
+  | 'CONSULTA_MEDICA'
+  | 'PROBLEMA_FAMILIAR'
+  | 'SAIDA_COM_ENCARREGADO'
+  | 'ATIVIDADE_ESCOLAR_EXTERNA'
+  | 'AUTORIZACAO_DIRECAO'
+  | 'OUTRO';
+
+export const EXIT_REASONS: Array<{ code: ExitReasonCode; label: string }> = [
+  { code: 'DOENCA', label: 'Doença' },
+  { code: 'EMERGENCIA_MEDICA', label: 'Emergência Médica' },
+  { code: 'CONSULTA_MEDICA', label: 'Consulta Médica' },
+  { code: 'PROBLEMA_FAMILIAR', label: 'Problema Familiar' },
+  { code: 'SAIDA_COM_ENCARREGADO', label: 'Saída com Encarregado' },
+  { code: 'ATIVIDADE_ESCOLAR_EXTERNA', label: 'Atividade Escolar Externa' },
+  { code: 'AUTORIZACAO_DIRECAO', label: 'Autorização da Direção' },
+  { code: 'OUTRO', label: 'Outro (justificar)' },
+];
+
+/**
+ * Pedido de saída temporária (ADR 0002 §3-A).
+ * Encarregado solicita OU professor/instituição cria diretamente;
+ * aprovação nasce aqui e autoriza o evento SAIDA_TEMPORARIA no terminal.
+ */
+export interface ExitRequestRecord {
+  id: string;
+  studentId: string;
+  studentName: string;
+  classId: string;
+  className?: string;
+  schoolId: string;
+  institutionId?: string;
+  reasonCode: ExitReasonCode;
+  reasonText?: string;          // obrigatório quando reasonCode = 'OUTRO'
+  requestedByUid: string;
+  requestedByName?: string;
+  requestedByRole?: string;     // 'pai' | 'professor' | 'instituicao'
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'used';
+  windowStart?: string;         // ISO — janela de validade da saída
+  windowEnd?: string;
+  approvedByUid?: string;
+  approvedByName?: string;
+  approvedAt?: Timestamp | any;
+  rejectionNote?: string;
+  createdAt?: Timestamp | any;
+  updatedAt?: Timestamp | any;
+}
 
 export type AttendanceState =
   | 'AUSENTE'
@@ -366,6 +418,7 @@ export interface AttendanceEventRecord {
   confidence: number;
   livenessPassed: boolean;
   authorizationId?: string;
+  reasonCode?: string; // motivo quando type = 'ACESSO_REJEITADO'
   receiptCode: string;
   synced: boolean;
   createdAt?: Timestamp | any;
@@ -394,6 +447,22 @@ export interface DailyAttendanceRecord {
   updatedAt?: Timestamp | any;
 }
 
+/**
+ * Configuração de horários por turno (ADR 0002 §5 — substitui o 12:30 hard-coded).
+ * Formato "HH:MM" (24h).
+ */
+export interface ShiftSchedule {
+  entryStart: string;       // início da janela de entrada
+  entryEnd: string;         // fim da entrada regular (após isto = atraso)
+  officialExitStart: string; // início da saída oficial
+  officialExitEnd: string;   // fim da janela de saída oficial
+}
+
+export interface AttendanceSchedule {
+  morning: ShiftSchedule;
+  afternoon: ShiftSchedule;
+}
+
 export interface TerminalConfig {
   deviceId: string;
   deviceName: string;
@@ -405,6 +474,9 @@ export interface TerminalConfig {
   offlineEnabled: boolean;
   matchThreshold: number;
   cooldownSeconds: number;
+  attendanceSchedule?: AttendanceSchedule;
+  /** Política de re-entrada após SAÍDA_OFICIAL (regra: entrar/sair 1× por dia) */
+  reentryPolicy?: 'block' | 'allow'; // default: 'block'
 }
 
 export interface AccessLog {

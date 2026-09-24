@@ -1,5 +1,13 @@
-import { AccessLog, AttendanceEventType } from '@/lib/types';
-import { registerBiometricAccess as firestoreRegisterAccess } from '@/services/access-logs.service';
+/**
+ * Offline-first queue for attendance events.
+ *
+ * CORREÇÃO D1 (ADR 0004 / auditoria verificada): a fila sincroniza através do
+ * motor de presença (`registerAttendanceBiometricEvent`) — nunca pelo caminho
+ * legado `accessLogs` — garantindo que eventos registrados offline geram
+ * attendanceEvents, dailyAttendance, notificações e auditoria ao voltar a rede.
+ */
+import { AttendanceEventType } from '@/lib/types';
+import { registerAttendanceBiometricEvent } from '@/services/attendance-engine.service';
 
 export interface PendingOfflineLog {
   id: string;
@@ -7,6 +15,9 @@ export interface PendingOfflineLog {
   type: 'entry' | 'exit' | AttendanceEventType;
   method: 'facial' | 'fingerprint' | 'manual';
   location: string;
+  deviceId?: string;
+  confidence?: number;
+  reasonCode?: string;
   timestamp: string;
   dateStr: string;
   receiptCode: string;
@@ -87,13 +98,16 @@ class OfflineSyncManager {
   }
 
   /**
-   * Enqueues an attendance log locally when device is offline
+   * Enqueues an attendance event locally when device is offline
    */
   public enqueue(
     studentId: string,
     type: 'entry' | 'exit' | AttendanceEventType,
     method: 'facial' | 'fingerprint' | 'manual' = 'facial',
-    location = 'Portão Principal - Bloco A'
+    location = 'Portão Principal - Bloco A',
+    deviceId?: string,
+    confidence?: number,
+    reasonCode?: string
   ): PendingOfflineLog {
     const now = new Date();
     const timeStr = now.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -106,6 +120,9 @@ class OfflineSyncManager {
       type,
       method,
       location,
+      deviceId,
+      confidence,
+      reasonCode,
       timestamp: timeStr,
       dateStr,
       receiptCode,
@@ -120,7 +137,7 @@ class OfflineSyncManager {
   }
 
   /**
-   * Flushes and synchronizes all pending offline logs with Firestore
+   * Flushes pending events through the attendance engine (full domain write).
    */
   public async flushQueue(): Promise<{ syncedCount: number; errors: number }> {
     if (this.isSyncing || this.queue.length === 0) {
@@ -135,12 +152,25 @@ class OfflineSyncManager {
 
     for (const item of currentItems) {
       try {
-        await firestoreRegisterAccess(
-          item.studentId,
-          item.type,
-          item.method,
-          item.location
-        );
+        // Tipos legados 'entry'/'exit' → o motor decide automaticamente
+        // o evento correto a partir do estado diário do aluno.
+        const legacyEventType =
+          item.type === 'ENTRADA' || item.type === 'SAIDA_TEMPORARIA' || item.type === 'RETORNO' || item.type === 'SAIDA_OFICIAL' || item.type === 'ACESSO_REJEITADO'
+            ? (item.type as AttendanceEventType)
+            : item.type === 'entry'
+            ? 'ENTRADA'
+            : undefined;
+
+        await registerAttendanceBiometricEvent({
+          studentId: item.studentId,
+          eventType: legacyEventType,
+          preferredMode: 'auto',
+          method: item.method === 'facial' ? 'FACIAL' : item.method === 'fingerprint' ? 'FINGERPRINT' : 'MANUAL',
+          location: item.location,
+          deviceId: item.deviceId,
+          confidence: item.confidence,
+          reasonCode: item.reasonCode,
+        });
 
         // Remove item from queue on success
         this.queue = this.queue.filter((q) => q.id !== item.id);
@@ -148,9 +178,16 @@ class OfflineSyncManager {
         syncedCount++;
         this.notify();
       } catch (err) {
-        console.warn('Falha ao sincronizar registo offline com Firebase:', err);
+        console.warn('Falha ao sincronizar evento offline com o motor de presença:', err);
         item.attempts += 1;
         errors++;
+        // Descarta itens com demasiadas tentativas (ex.: aluno removido) para não bloquear a fila
+        if (item.attempts >= 8) {
+          console.warn('Evento offline descartado após 8 tentativas:', item.id);
+          this.queue = this.queue.filter((q) => q.id !== item.id);
+          this.saveQueue();
+          this.notify();
+        }
       }
     }
 

@@ -127,6 +127,31 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // 1.b Biometria, Terminais e Autorizações de Saída
+    // (ADRs 0002/0003/0004 — dados sensíveis de menores, SEM acesso público)
+    // ==========================================================
+    match /biometricProfiles/{profileId} {
+      // Somente instituição (gestão) e terminal autenticado.
+      allow read: if isInstitutionUser() || (isAuthenticated() && getRole() == 'terminal');
+      allow create, update: if isInstitutionUser();
+      allow delete: if isInstitutionUser();
+    }
+
+    match /terminals/{terminalId} {
+      allow read: if isInstitutionUser() || (isAuthenticated() && (getRole() == 'terminal' || getRole() == 'professor'));
+      allow create, update, delete: if isInstitutionUser();
+    }
+
+    match /exitRequests/{requestId} {
+      // Encarregado/professor criam pedidos em seu nome; instituição gere.
+      allow read: if isInstitutionUser() || isTeacher() ||
+        (isAuthenticated() && resource.data.get('requestedByUid', '') == request.auth.uid) ||
+        (isGuardian() && resource.data.get('studentId', '') in getUserData().get('studentIds', []));
+      allow create: if (isAuthenticated() && request.resource.data.get('requestedByUid', '') == request.auth.uid) || isInstitutionUser();
+      allow update, delete: if isInstitutionUser() || isTeacher();
+    }
+
+    // ==========================================================
     // 3. Coleção: students/{studentId}
     //    - Encarregado: lê apenas seus educandos vinculados
     //    - Professor: lê alunos das suas turmas
