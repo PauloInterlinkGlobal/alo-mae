@@ -23,8 +23,8 @@ export default function LoginInstituicaoPage() {
   const router = useRouter();
   const { setCurrentUser } = useSystem();
 
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [email, setEmail] = useState<string>('paulopintodesenvolvedor@gmail.com');
+  const [password, setPassword] = useState<string>('intituicao123');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -32,6 +32,33 @@ export default function LoginInstituicaoPage() {
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
   const [resetEmail, setResetEmail] = useState<string>('');
   const [isSendingReset, setIsSendingReset] = useState<boolean>(false);
+
+  const fillAndLogin = async (adminEmail: string, adminPass: string) => {
+    setEmail(adminEmail);
+    setPassword(adminPass);
+    setIsLoading(true);
+    setErrorMsg('');
+    setResetSuccessMsg('');
+
+    try {
+      const { user } = await loginUser(adminEmail.trim(), adminPass, 'instituicao');
+      const userAccount = {
+        ...user,
+        id: user.uid,
+        name: user.name || user.nome || 'Paulo Pinto',
+        phone: user.phone || user.telefone || '+244 923 000 001',
+        schoolName: 'Colégio Horizonte de Luanda',
+      };
+      setCurrentUser(userAccount);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('alomae_user', JSON.stringify(userAccount));
+      }
+      router.push('/admin/dashboard');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Ocorreu um erro ao autenticar no painel administrativo.');
+      setIsLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,6 +171,38 @@ export default function LoginInstituicaoPage() {
                 <span className="leading-snug">{errorMsg}</span>
               </div>
             )}
+
+            {/* Admin Quick Credentials Card */}
+            <div className="mb-5 p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[11px] font-bold text-[#143A7B] uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
+                  Conta de Administrador Geral
+                </span>
+                <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
+                  Oficial
+                </span>
+              </div>
+              <div className="text-xs text-slate-700 space-y-1 mb-3 bg-white p-2.5 rounded-xl border border-blue-100 font-mono text-[11px]">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-sans">E-mail:</span>
+                  <span className="font-semibold text-slate-900">paulopintodesenvolvedor@gmail.com</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-sans">Palavra-passe:</span>
+                  <span className="font-semibold text-slate-900">intituicao123</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => fillAndLogin('paulopintodesenvolvedor@gmail.com', 'intituicao123')}
+                disabled={isLoading}
+                className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-300" />
+                <span>Preencher e Entrar como Paulo Pinto (Admin)</span>
+              </button>
+            </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div>

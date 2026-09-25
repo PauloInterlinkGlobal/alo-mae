@@ -7,7 +7,7 @@ import { AdminHeader } from '@/components/admin/AdminHeader';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <RouteGuard allowedRoles={['instituicao']}>
+    <RouteGuard allowedRoles={['instituicao', 'admin']}>
       <div className="min-h-screen bg-[#F8F9FF] flex font-['Inter',sans-serif] text-[#121C28]">
         {/* Left Sidebar */}
         <AdminSidebar />

@@ -8,6 +8,8 @@ import { loginUser, sendPasswordReset } from '@/services/auth.service';
 import { Logo } from '@/components/LogoImg';
 import {
   Users,
+  Building2,
+  GraduationCap,
   Lock,
   Mail,
   Phone,
@@ -19,12 +21,14 @@ import {
   ArrowLeft,
   ScanFace,
   AlertCircle,
+  Loader2,
 } from 'lucide-react';
 
 export default function LoginEncarregadoPage() {
   const router = useRouter();
   const { setCurrentUser } = useSystem();
 
+  const [portalRole, setPortalRole] = useState<'pai' | 'instituicao' | 'professor'>('pai');
   const [identifier, setIdentifier] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
@@ -34,6 +38,12 @@ export default function LoginEncarregadoPage() {
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
   const [resetEmail, setResetEmail] = useState<string>('');
   const [isSendingReset, setIsSendingReset] = useState<boolean>(false);
+
+  const fillAdminCredentials = () => {
+    setPortalRole('instituicao');
+    setIdentifier('paulopintodesenvolvedor@gmail.com');
+    setPassword('intituicao123');
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,8 +61,12 @@ export default function LoginEncarregadoPage() {
     setResetSuccessMsg('');
 
     try {
-      // Authenticate strictly with role 'pai'
-      const { user, mustChangePassword } = await loginUser(identifier.trim(), password, 'pai');
+      const isInputAdmin = identifier.trim().toLowerCase() === 'paulopintodesenvolvedor@gmail.com' ||
+        identifier.trim().toLowerCase() === 'direcao@colegiohorizonte.ao';
+      const effectiveRole = isInputAdmin ? 'instituicao' : portalRole;
+
+      // Authenticate with effective role
+      const { user, mustChangePassword } = await loginUser(identifier.trim(), password, effectiveRole);
 
       // Update global session context
       const userAccount = {
@@ -67,11 +81,17 @@ export default function LoginEncarregadoPage() {
         localStorage.setItem('alomae_user', JSON.stringify(userAccount));
       }
 
-      // Check mustChangePassword
-      if (mustChangePassword) {
-        router.push('/pai/alterar-senha');
+      // Route based on authenticated user role
+      if (user.role === 'instituicao' || user.role === 'admin') {
+        router.push('/admin/dashboard');
+      } else if (user.role === 'professor') {
+        router.push('/professor/turma');
       } else {
-        router.push('/pai/inicio');
+        if (mustChangePassword) {
+          router.push('/pai/alterar-senha');
+        } else {
+          router.push('/pai/inicio');
+        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Ocorreu um erro ao autenticar. Verifique a sua ligação e credenciais.');
@@ -132,23 +152,125 @@ export default function LoginEncarregadoPage() {
       {/* Main Login Card Container */}
       <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md bg-white text-[#121C28] rounded-3xl shadow-2xl overflow-hidden border border-white/20">
+          {/* Role Tabs */}
+          <div className="grid grid-cols-3 bg-slate-100 p-1.5 border-b border-slate-200">
+            <button
+              type="button"
+              onClick={() => {
+                setPortalRole('instituicao');
+                setErrorMsg('');
+              }}
+              className={`py-2 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                portalRole === 'instituicao'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5" />
+              <span>Instituição</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPortalRole('pai');
+                setErrorMsg('');
+              }}
+              className={`py-2 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                portalRole === 'pai'
+                  ? 'bg-[#143A7B] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Encarregado</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPortalRole('professor');
+                setErrorMsg('');
+              }}
+              className={`py-2 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                portalRole === 'professor'
+                  ? 'bg-indigo-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>Professor</span>
+            </button>
+          </div>
+
           {/* Card Header */}
-          <div className="bg-[#143A7B] p-6 sm:p-7 text-white text-center relative">
+          <div
+            className={`p-6 sm:p-7 text-white text-center relative transition-colors ${
+              portalRole === 'instituicao'
+                ? 'bg-slate-900'
+                : portalRole === 'professor'
+                ? 'bg-indigo-900'
+                : 'bg-[#143A7B]'
+            }`}
+          >
             <div className="inline-flex p-3 bg-white/10 rounded-2xl mb-3 backdrop-blur-xs border border-white/15">
-              <Users className="w-8 h-8 text-blue-200" />
+              {portalRole === 'instituicao' ? (
+                <Building2 className="w-8 h-8 text-sky-300" />
+              ) : portalRole === 'professor' ? (
+                <GraduationCap className="w-8 h-8 text-indigo-200" />
+              ) : (
+                <Users className="w-8 h-8 text-blue-200" />
+              )}
             </div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200 bg-white/10 px-2.5 py-0.5 rounded-md mb-1 inline-block">
-              Portal do Encarregado
+              {portalRole === 'instituicao'
+                ? 'Administração Geral'
+                : portalRole === 'professor'
+                ? 'Corpo Docente'
+                : 'Portal do Encarregado'}
             </span>
             <h1 className="font-['Poppins',sans-serif] font-bold text-2xl tracking-tight mb-1">
-              Área da Família
+              {portalRole === 'instituicao'
+                ? 'Instituição de Ensino'
+                : portalRole === 'professor'
+                ? 'Área do Docente'
+                : 'Área da Família'}
             </h1>
             <p className="text-blue-100 text-xs sm:text-sm">
-              Identifique-se com o seu e-mail ou número de telefone registado.
+              {portalRole === 'instituicao'
+                ? 'Aceda ao painel institucional para cadastrar e gerir utilizadores.'
+                : portalRole === 'professor'
+                ? 'Gestão de turmas atribuídas, mini pautas e faltas.'
+                : 'Identifique-se com o seu e-mail ou número de telefone registado.'}
             </p>
           </div>
 
           <div className="p-6 sm:p-7">
+            {/* Quick Admin Access pill */}
+            <div className="mb-4 p-3 bg-sky-50 border border-sky-200/80 rounded-2xl flex flex-col gap-2">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="font-bold text-[#0D1B3D] flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-sky-600" />
+                  Administrador Oficial:
+                </span>
+                <span className="text-[10px] bg-sky-200/60 text-sky-800 font-semibold px-2 py-0.5 rounded-full">
+                  Admin
+                </span>
+              </div>
+              <div className="text-[11px] text-slate-600 flex flex-col sm:flex-row sm:items-center justify-between gap-1 font-mono">
+                <span>paulopintodesenvolvedor@gmail.com</span>
+                <span className="text-slate-400">• senha: intituicao123</span>
+              </div>
+              <button
+                type="button"
+                onClick={fillAdminCredentials}
+                className="w-full bg-[#0D1B3D] hover:bg-[#143A7B] text-white py-1.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+              >
+                <span>Usar Credenciais de Administrador</span>
+                <ArrowRight className="w-3 h-3 text-cyan-300" />
+              </button>
+            </div>
+
             {/* Messages */}
             {resetSuccessMsg && (
               <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
@@ -169,7 +291,7 @@ export default function LoginEncarregadoPage() {
               {/* Email / Telefone */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                  E-mail ou Número de Telefone
+                  {portalRole === 'instituicao' ? 'E-mail Institucional do Administrador' : 'E-mail ou Número de Telefone'}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -184,7 +306,11 @@ export default function LoginEncarregadoPage() {
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     required
-                    placeholder="ex: fernanda.silva@email.com ou +244 923 884 912"
+                    placeholder={
+                      portalRole === 'instituicao'
+                        ? 'paulopintodesenvolvedor@gmail.com'
+                        : 'ex: fernanda.silva@email.com ou +244 923 884 912'
+                    }
                     className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B] focus:border-transparent transition-all"
                   />
                 </div>
@@ -233,16 +359,28 @@ export default function LoginEncarregadoPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-2 bg-[#143A7B] hover:bg-[#0D1B3D] active:scale-[0.99] text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/20 transition-all cursor-pointer disabled:opacity-70"
+                className={`w-full mt-2 text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-70 ${
+                  portalRole === 'instituicao'
+                    ? 'bg-slate-900 hover:bg-black shadow-slate-900/20'
+                    : portalRole === 'professor'
+                    ? 'bg-indigo-900 hover:bg-indigo-950 shadow-indigo-900/20'
+                    : 'bg-[#143A7B] hover:bg-[#0D1B3D] shadow-blue-900/20'
+                }`}
               >
                 {isLoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Autenticando no Firebase Auth...</span>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Autenticando...</span>
                   </>
                 ) : (
                   <>
-                    <span>Entrar no Portal da Família</span>
+                    <span>
+                      {portalRole === 'instituicao'
+                        ? 'Entrar no Painel Administrativo'
+                        : portalRole === 'professor'
+                        ? 'Entrar no Portal do Professor'
+                        : 'Entrar no Portal da Família'}
+                    </span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

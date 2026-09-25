@@ -67,6 +67,7 @@ export interface UserProfile {
   criado_em?: string;
   instituicao_id?: string;
   escola_nome?: string;
+  schoolName?: string;
   id?: string;
   studentId?: string;
 }

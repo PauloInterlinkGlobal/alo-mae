@@ -85,7 +85,7 @@ export default function AlunoTerminalPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Hardware Camera & Stream
-  const [isWebcamActive, setIsWebcamActive] = useState(false);
+  const [isWebcamActive, setIsWebcamActive] = useState(true);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -176,11 +176,16 @@ export default function AlunoTerminalPage() {
   // Cooldown countdown timer
   useEffect(() => {
     if (cooldownCountdown <= 0) {
-      setCooldownStudentId(null);
       return;
     }
     const timer = setTimeout(() => {
-      setCooldownCountdown((prev) => prev - 1);
+      setCooldownCountdown((prev) => {
+        if (prev <= 1) {
+          setCooldownStudentId(null);
+          return 0;
+        }
+        return prev - 1;
+      });
     }, 1000);
     return () => clearTimeout(timer);
   }, [cooldownCountdown]);
@@ -194,17 +199,11 @@ export default function AlunoTerminalPage() {
     return () => clearTimeout(timer);
   }, [confirmedStudent]);
 
-  // Initialize Camera automatically on mount
-  useEffect(() => {
-    setIsWebcamActive(true);
-  }, []);
-
   // WebCam Stream Lifecycle
   useEffect(() => {
     let stream: MediaStream | null = null;
 
     if (isWebcamActive && typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-      setCameraError(null);
       navigator.mediaDevices
         .getUserMedia({
           video: {
@@ -216,6 +215,7 @@ export default function AlunoTerminalPage() {
         })
         .then((s) => {
           stream = s;
+          setCameraError(null);
           if (videoRef.current) {
             videoRef.current.srcObject = s;
             videoRef.current.play().catch(() => {});

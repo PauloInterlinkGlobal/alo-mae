@@ -1001,6 +1001,28 @@ export function listenPresencasRecentes(callback: (presencas: PresencaBiometrica
 
 export async function seedInitialFirestoreData(): Promise<boolean> {
   try {
+    // Ensure primary administrator account in Firestore
+    const pauloAdminUser: UserProfile = {
+      uid: 'admin_paulo_pinto',
+      id: 'admin_paulo_pinto',
+      name: 'Paulo Pinto',
+      nome: 'Paulo Pinto',
+      email: 'paulopintodesenvolvedor@gmail.com',
+      phone: '+244 923 000 001',
+      telefone: '+244 923 000 001',
+      role: 'instituicao',
+      institutionUserType: 'admin',
+      schoolId: 'school_horizonte_luanda',
+      institutionId: 'school_horizonte_luanda',
+      schoolName: 'Colégio Horizonte de Luanda',
+      escola_nome: 'Colégio Horizonte de Luanda',
+      title: 'Administrador Geral da Instituição',
+      active: true,
+      mustChangePassword: false,
+    };
+
+    setDoc(doc(db, 'users', 'admin_paulo_pinto'), pauloAdminUser, { merge: true }).catch(() => null);
+
     const studentsCheck = await getDocs(query(collection(db, 'students'), limit(1)));
     if (!studentsCheck.empty) {
       return true; // Already initialized
@@ -1010,6 +1032,7 @@ export async function seedInitialFirestoreData(): Promise<boolean> {
 
     // 1. Coleção `users`
     const defaultUsers: UserProfile[] = [
+      pauloAdminUser,
       {
         uid: 'user_pai_fernanda',
         name: 'Fernanda Silva',

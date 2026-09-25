@@ -141,7 +141,6 @@ export default function RootPortalPage() {
           <Link
             href="/login-prof"
             className="group bg-white rounded-3xl p-6 sm:p-7 text-slate-900 border border-white/20 hover:border-indigo-400 shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col justify-between relative overflow-hidden"
-            hidden
           >
             <div className="absolute top-0 right-0 w-28 h-28 bg-indigo-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform" />
 
@@ -173,7 +172,6 @@ export default function RootPortalPage() {
           <Link
             href="/login-admin"
             className="group bg-white rounded-3xl p-6 sm:p-7 text-slate-900 border border-white/20 hover:border-sky-400 shadow-xl hover:shadow-2xl transition-all duration-300 flex flex-col justify-between relative overflow-hidden"
-            hidden
           >
             <div className="absolute top-0 right-0 w-28 h-28 bg-sky-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform" />
 
@@ -183,11 +181,15 @@ export default function RootPortalPage() {
               </div>
 
               <span className="text-[11px] font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-2.5 py-1 rounded-md mb-2 inline-block">
-                Administração
+                Administração Oficial
               </span>
-              <h2 className="font-['Poppins',sans-serif] font-bold text-xl text-[#0D1B3D] mb-2">
+              <h2 className="font-['Poppins',sans-serif] font-bold text-xl text-[#0D1B3D] mb-1">
                 Instituição de Ensino
               </h2>
+              <p className="text-[11px] text-sky-700 font-medium mb-2 flex items-center gap-1">
+                <span>Admin:</span>
+                <span className="font-semibold text-slate-900">paulopintodesenvolvedor@gmail.com</span>
+              </p>
               <p className="text-slate-600 text-xs sm:text-sm leading-relaxed mb-6">
                 Painel administrativo completo: gestão e criação de encarregados e professores, apólices de seguro, aprovação de mini pautas e auditoria.
               </p>

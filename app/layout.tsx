@@ -12,6 +12,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL('http://localhost:3000'),
   title: 'Alô mãe — Conexão que cuida | Sistema Biométrico Escolar',
   applicationName: 'Alô mãe',
   description:
