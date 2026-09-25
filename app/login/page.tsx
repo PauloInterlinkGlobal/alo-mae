@@ -4,8 +4,16 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSystem } from '@/lib/context';
-import { loginUser, sendPasswordReset } from '@/services/auth.service';
+import { useToast } from '@/components/Toast';
+import {
+  loginUser,
+  sendPasswordReset,
+  loginWithGoogle,
+  getRouteForUserRole,
+  formatFirebaseAuthError,
+} from '@/services/auth.service';
 import { Logo } from '@/components/LogoImg';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import {
   Users,
   Building2,
@@ -22,17 +30,21 @@ import {
   ScanFace,
   AlertCircle,
   Loader2,
+  Sparkles,
+  X,
 } from 'lucide-react';
 
 export default function LoginEncarregadoPage() {
   const router = useRouter();
   const { setCurrentUser } = useSystem();
+  const toast = useToast();
 
   const [portalRole, setPortalRole] = useState<'pai' | 'instituicao' | 'professor'>('pai');
   const [identifier, setIdentifier] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [resetSuccessMsg, setResetSuccessMsg] = useState<string>('');
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
@@ -43,16 +55,59 @@ export default function LoginEncarregadoPage() {
     setPortalRole('instituicao');
     setIdentifier('paulopintodesenvolvedor@gmail.com');
     setPassword('intituicao123');
+    setErrorMsg('');
+    toast.info('Credenciais de Administrador preenchidas. Clique em "Iniciar Sessão".', 'Demonstração');
+  };
+
+  const handleGoogleLogin = async () => {
+    setIsLoadingGoogle(true);
+    setErrorMsg('');
+    setResetSuccessMsg('');
+
+    try {
+      const { user, isNewUser } = await loginWithGoogle(portalRole);
+      const userAccount = {
+        ...user,
+        id: user.uid,
+        name: user.name || user.nome || 'Utilizador',
+        phone: user.phone || user.telefone || '',
+        schoolName: user.schoolName || 'Colégio Horizonte de Luanda',
+      };
+      setCurrentUser(userAccount);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('alomae_user', JSON.stringify(userAccount));
+      }
+
+      toast.success(
+        isNewUser
+          ? `Conta autorizada e vinculada com sucesso via Google! Bem-vindo(a), ${userAccount.name}.`
+          : `Sessão iniciada com sucesso via Google. Bem-vindo(a), ${userAccount.name}.`,
+        'Autenticação Google'
+      );
+
+      const destination = getRouteForUserRole(user.role, user.mustChangePassword);
+      router.push(destination);
+    } catch (err: any) {
+      const formatted = formatFirebaseAuthError(err);
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Falha no Login Google');
+    } finally {
+      setIsLoadingGoogle(false);
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) {
-      setErrorMsg('Por favor, informe o seu e-mail ou telefone.');
+      const msg = 'Por favor, informe o seu e-mail ou número de telefone registado.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Campo Obrigatório');
       return;
     }
     if (!password) {
-      setErrorMsg('Por favor, informe a sua palavra-passe.');
+      const msg = 'Por favor, introduza a sua palavra-passe.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Campo Obrigatório');
       return;
     }
 
@@ -61,58 +116,61 @@ export default function LoginEncarregadoPage() {
     setResetSuccessMsg('');
 
     try {
-      const isInputAdmin = identifier.trim().toLowerCase() === 'paulopintodesenvolvedor@gmail.com' ||
+      const isInputAdmin =
+        identifier.trim().toLowerCase() === 'paulopintodesenvolvedor@gmail.com' ||
         identifier.trim().toLowerCase() === 'direcao@colegiohorizonte.ao';
       const effectiveRole = isInputAdmin ? 'instituicao' : portalRole;
 
-      // Authenticate with effective role
+      // Authenticate with Firebase Authentication & Firestore
       const { user, mustChangePassword } = await loginUser(identifier.trim(), password, effectiveRole);
 
-      // Update global session context
       const userAccount = {
         ...user,
         id: user.uid,
         name: user.name || user.nome || '',
         phone: user.phone || user.telefone || '',
-        schoolName: 'Colégio Horizonte de Luanda',
+        schoolName: user.schoolName || 'Colégio Horizonte de Luanda',
       };
       setCurrentUser(userAccount);
       if (typeof window !== 'undefined') {
         localStorage.setItem('alomae_user', JSON.stringify(userAccount));
       }
 
-      // Route based on authenticated user role
-      if (user.role === 'instituicao' || user.role === 'admin') {
-        router.push('/admin/dashboard');
-      } else if (user.role === 'professor') {
-        router.push('/professor/turma');
-      } else {
-        if (mustChangePassword) {
-          router.push('/pai/alterar-senha');
-        } else {
-          router.push('/pai/inicio');
-        }
-      }
+      toast.success(`Autenticação efetuada com sucesso. A redirecionar...`, 'Sessão Iniciada');
+
+      // Dynamic role-based routing
+      const targetRoute = getRouteForUserRole(user.role, mustChangePassword);
+      router.push(targetRoute);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Ocorreu um erro ao autenticar. Verifique a sua ligação e credenciais.');
+      const formatted = formatFirebaseAuthError(err);
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Falha de Autenticação');
       setIsLoading(false);
     }
   };
 
   const handleSendResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetEmail.trim()) return;
+    if (!resetEmail.trim()) {
+      const msg = 'Por favor, introduza o e-mail cadastrado para redefinir a palavra-passe.';
+      setErrorMsg(msg);
+      toast.warning(msg);
+      return;
+    }
 
     setIsSendingReset(true);
     setErrorMsg('');
-
     try {
       await sendPasswordReset(resetEmail.trim());
-      setResetSuccessMsg(`Um e-mail oficial com instruções de redefinição de palavra-passe foi enviado para ${resetEmail}.`);
+      const successMessage = `Instruções de redefinição enviadas para ${resetEmail}. Verifique a sua caixa de entrada ou spam no Gmail.`;
+      setResetSuccessMsg(successMessage);
+      toast.success(successMessage, 'Recuperação Enviada');
       setShowResetModal(false);
       setResetEmail('');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Não foi possível enviar o e-mail de recuperação. Verifique o endereço introduzido.');
+      const formatted = formatFirebaseAuthError(err);
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Erro na Recuperação');
     } finally {
       setIsSendingReset(false);
     }
@@ -271,20 +329,59 @@ export default function LoginEncarregadoPage() {
               </button>
             </div>
 
-            {/* Messages */}
+            {/* Messages & Feedback Banners */}
             {resetSuccessMsg && (
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{resetSuccessMsg}</span>
+              <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-start justify-between gap-2 shadow-xs animate-fade-in">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span className="leading-snug">{resetSuccessMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResetSuccessMsg('')}
+                  className="text-emerald-600 hover:text-emerald-800 p-0.5 rounded cursor-pointer"
+                  title="Fechar mensagem"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
 
             {errorMsg && (
-              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span className="leading-snug">{errorMsg}</span>
+              <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start justify-between gap-2 shadow-xs animate-fade-in">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span className="leading-snug font-medium">{errorMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorMsg('')}
+                  className="text-rose-500 hover:text-rose-800 p-0.5 rounded cursor-pointer"
+                  title="Fechar erro"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
+
+            {/* Google Sign-in Button */}
+            <div className="mb-5">
+              <GoogleSignInButton
+                onClick={handleGoogleLogin}
+                isLoading={isLoadingGoogle}
+                disabled={isLoading}
+                label="Continuar com Google"
+                loadingLabel="A autenticar com Google…"
+              />
+
+              <div className="relative my-4 flex items-center justify-center">
+                <div className="border-t border-slate-200 w-full" />
+                <span className="bg-white px-2.5 text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                  ou entrar com e-mail e senha
+                </span>
+                <div className="border-t border-slate-200 w-full" />
+              </div>
+            </div>
 
             {/* Form */}
             <form onSubmit={handleLogin} className="space-y-4">
@@ -305,13 +402,14 @@ export default function LoginEncarregadoPage() {
                     type="text"
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
+                    disabled={isLoading || isLoadingGoogle}
                     required
                     placeholder={
                       portalRole === 'instituicao'
                         ? 'paulopintodesenvolvedor@gmail.com'
                         : 'ex: fernanda.silva@email.com ou +244 923 884 912'
                     }
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B] focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -341,9 +439,10 @@ export default function LoginEncarregadoPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading || isLoadingGoogle}
                     required
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#143A7B] focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
@@ -358,8 +457,8 @@ export default function LoginEncarregadoPage() {
               {/* Submit CTA */}
               <button
                 type="submit"
-                disabled={isLoading}
-                className={`w-full mt-2 text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-70 ${
+                disabled={isLoading || isLoadingGoogle}
+                className={`w-full mt-2 text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed ${
                   portalRole === 'instituicao'
                     ? 'bg-slate-900 hover:bg-black shadow-slate-900/20'
                     : portalRole === 'professor'
@@ -370,7 +469,7 @@ export default function LoginEncarregadoPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin text-white" />
-                    <span>Autenticando...</span>
+                    <span>Autenticando no Firebase...</span>
                   </>
                 ) : (
                   <>

@@ -44,6 +44,10 @@ export interface UserProfile {
   institutionId?: string;
   schoolId?: string;
   role: UserRole;
+  status?: 'pending' | 'active' | 'rejected' | 'suspended';
+  authProvider?: 'google' | 'password' | 'phone';
+  approvedAt?: Timestamp | any;
+  approvedBy?: string;
   institutionUserType?: InstitutionUserType;
   name: string;
   email: string;

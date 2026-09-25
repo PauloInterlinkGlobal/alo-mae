@@ -4,8 +4,16 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSystem } from '@/lib/context';
-import { loginUser, sendPasswordReset } from '@/services/auth.service';
+import { useToast } from '@/components/Toast';
+import {
+  loginUser,
+  sendPasswordReset,
+  loginWithGoogle,
+  getRouteForUserRole,
+  formatFirebaseAuthError,
+} from '@/services/auth.service';
 import { Logo } from '@/components/LogoImg';
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton';
 import {
   Building2,
   Lock,
@@ -17,21 +25,58 @@ import {
   CheckCircle,
   ArrowLeft,
   AlertCircle,
+  Loader2,
+  X,
 } from 'lucide-react';
 
 export default function LoginInstituicaoPage() {
   const router = useRouter();
   const { setCurrentUser } = useSystem();
+  const toast = useToast();
 
   const [email, setEmail] = useState<string>('paulopintodesenvolvedor@gmail.com');
   const [password, setPassword] = useState<string>('intituicao123');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isLoadingGoogle, setIsLoadingGoogle] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [resetSuccessMsg, setResetSuccessMsg] = useState<string>('');
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
   const [resetEmail, setResetEmail] = useState<string>('');
   const [isSendingReset, setIsSendingReset] = useState<boolean>(false);
+
+  const handleGoogleLogin = async () => {
+    setIsLoadingGoogle(true);
+    setErrorMsg('');
+    setResetSuccessMsg('');
+
+    try {
+      const { user } = await loginWithGoogle('instituicao');
+      const userAccount = {
+        ...user,
+        id: user.uid,
+        name: user.name || user.nome || 'Administrador',
+        phone: user.phone || user.telefone || '+244 923 000 001',
+        schoolName: user.schoolName || 'Colégio Horizonte de Luanda',
+      };
+      setCurrentUser(userAccount);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('alomae_user', JSON.stringify(userAccount));
+      }
+
+      toast.success(`Acesso administrativo autenticado via Google. Bem-vindo(a), ${userAccount.name}.`, 'Painel Institucional');
+
+      // Role-based routing
+      const target = getRouteForUserRole(user.role, user.mustChangePassword);
+      router.push(target);
+    } catch (err: any) {
+      const formatted = formatFirebaseAuthError(err);
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Erro no Login Google');
+    } finally {
+      setIsLoadingGoogle(false);
+    }
+  };
 
   const fillAndLogin = async (adminEmail: string, adminPass: string) => {
     setEmail(adminEmail);
@@ -39,6 +84,7 @@ export default function LoginInstituicaoPage() {
     setIsLoading(true);
     setErrorMsg('');
     setResetSuccessMsg('');
+    toast.info('Autenticando conta institucional demonstrativa...', 'Acesso Rápido');
 
     try {
       const { user } = await loginUser(adminEmail.trim(), adminPass, 'instituicao');
@@ -53,9 +99,13 @@ export default function LoginInstituicaoPage() {
       if (typeof window !== 'undefined') {
         localStorage.setItem('alomae_user', JSON.stringify(userAccount));
       }
-      router.push('/admin/dashboard');
+      toast.success('Sessão iniciada como Administrador Principal.', 'Acesso Concedido');
+      const target = getRouteForUserRole(user.role, user.mustChangePassword);
+      router.push(target);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Ocorreu um erro ao autenticar no painel administrativo.');
+      const formatted = formatFirebaseAuthError(err);
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Erro de Autenticação');
       setIsLoading(false);
     }
   };
@@ -63,11 +113,15 @@ export default function LoginInstituicaoPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setErrorMsg('Por favor, informe o e-mail institucional do administrador.');
+      const msg = 'Por favor, informe o e-mail institucional do administrador.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Campo Obrigatório');
       return;
     }
     if (!password) {
-      setErrorMsg('Por favor, informe a sua palavra-passe.');
+      const msg = 'Por favor, informe a sua palavra-passe.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Campo Obrigatório');
       return;
     }
 
@@ -77,7 +131,7 @@ export default function LoginInstituicaoPage() {
 
     try {
       // Authenticate strictly with role 'instituicao'
-      const { user } = await loginUser(email.trim(), password, 'instituicao');
+      const { user, mustChangePassword } = await loginUser(email.trim(), password, 'instituicao');
 
       // Update global session context
       const userAccount = {
@@ -92,27 +146,40 @@ export default function LoginInstituicaoPage() {
         localStorage.setItem('alomae_user', JSON.stringify(userAccount));
       }
 
-      router.push('/admin/dashboard');
+      toast.success('Credenciais validadas com sucesso.', 'Acesso Institucional');
+      const target = getRouteForUserRole(user.role, mustChangePassword);
+      router.push(target);
     } catch (err: any) {
-      setErrorMsg(err.message || 'Ocorreu um erro ao autenticar no painel administrativo.');
+      const formatted = formatFirebaseAuthError(err);
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Falha no Acesso');
       setIsLoading(false);
     }
   };
 
   const handleSendResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetEmail.trim()) return;
+    if (!resetEmail.trim()) {
+      const msg = 'Por favor, introduza o e-mail institucional para redefinir a palavra-passe.';
+      setErrorMsg(msg);
+      toast.warning(msg);
+      return;
+    }
 
     setIsSendingReset(true);
     setErrorMsg('');
 
     try {
       await sendPasswordReset(resetEmail.trim());
-      setResetSuccessMsg(`Um e-mail de recuperação foi enviado para ${resetEmail}.`);
+      const msg = `Um e-mail de recuperação foi enviado para ${resetEmail}. Verifique o seu Gmail.`;
+      setResetSuccessMsg(msg);
+      toast.success(msg, 'Recuperação Enviada');
       setShowResetModal(false);
       setResetEmail('');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Não foi possível enviar o e-mail de recuperação.');
+      const formatted = formatFirebaseAuthError(err);
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Erro na Recuperação');
     } finally {
       setIsSendingReset(false);
     }
@@ -158,17 +225,38 @@ export default function LoginInstituicaoPage() {
           </div>
 
           <div className="p-6 sm:p-7">
+            {/* Feedback Banners */}
             {resetSuccessMsg && (
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{resetSuccessMsg}</span>
+              <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-start justify-between gap-2 shadow-xs animate-fade-in">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span className="leading-snug">{resetSuccessMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResetSuccessMsg('')}
+                  className="text-emerald-600 hover:text-emerald-800 p-0.5 rounded cursor-pointer"
+                  title="Fechar mensagem"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
 
             {errorMsg && (
-              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span className="leading-snug">{errorMsg}</span>
+              <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start justify-between gap-2 shadow-xs animate-fade-in">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span className="leading-snug font-medium">{errorMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorMsg('')}
+                  className="text-rose-500 hover:text-rose-800 p-0.5 rounded cursor-pointer"
+                  title="Fechar erro"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
 
@@ -196,12 +284,31 @@ export default function LoginInstituicaoPage() {
               <button
                 type="button"
                 onClick={() => fillAndLogin('paulopintodesenvolvedor@gmail.com', 'intituicao123')}
-                disabled={isLoading}
-                className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer"
+                disabled={isLoading || isLoadingGoogle}
+                className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-cyan-300" />
                 <span>Preencher e Entrar como Paulo Pinto (Admin)</span>
               </button>
+            </div>
+
+            {/* Google Sign-in Button */}
+            <div className="mb-4">
+              <GoogleSignInButton
+                onClick={handleGoogleLogin}
+                isLoading={isLoadingGoogle}
+                disabled={isLoading}
+                label="Continuar com Google"
+                loadingLabel="A autenticar com Google…"
+              />
+
+              <div className="relative my-4 flex items-center justify-center">
+                <div className="border-t border-slate-200 w-full" />
+                <span className="bg-white px-2.5 text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+                  ou entrar com credenciais
+                </span>
+                <div className="border-t border-slate-200 w-full" />
+              </div>
             </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
@@ -217,9 +324,10 @@ export default function LoginInstituicaoPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading || isLoadingGoogle}
                     required
                     placeholder="ex: direcao@colegiohorizonte.ao"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -248,9 +356,10 @@ export default function LoginInstituicaoPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading || isLoadingGoogle}
                     required
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
@@ -264,12 +373,12 @@ export default function LoginInstituicaoPage() {
 
               <button
                 type="submit"
-                disabled={isLoading}
-                className="w-full mt-2 bg-slate-900 hover:bg-black active:scale-[0.99] text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 transition-all cursor-pointer disabled:opacity-70"
+                disabled={isLoading || isLoadingGoogle}
+                className="w-full mt-2 bg-slate-900 hover:bg-black active:scale-[0.99] text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
                     <span>Autenticando no Firebase Auth...</span>
                   </>
                 ) : (

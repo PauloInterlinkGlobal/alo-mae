@@ -6,6 +6,10 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
   createUserWithEmailAndPassword,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
 } from 'firebase/auth';
 import {
   doc,
@@ -25,7 +29,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import firebaseConfig from '@/firebase-applet-config.json';
-import { UserProfile, UserRole } from '@/lib/types';
+import { UserProfile, UserRole, InstitutionUserType } from '@/lib/types';
 import { recordAuditLog } from './audit.service';
 
 /**
@@ -69,7 +73,7 @@ export const SYSTEM_ACCOUNTS: Record<string, {
   email: string;
   phone: string;
   role: UserRole;
-  institutionUserType?: string;
+  institutionUserType?: InstitutionUserType;
   schoolId: string;
   schoolName: string;
   title: string;
@@ -282,21 +286,11 @@ export async function loginUser(
   if (!profileData) {
     // If not found in known accounts or Firestore, and Firebase auth failed
     if (!firebaseUser) {
-      throw new Error('Utilizador não encontrado ou palavra-passe incorreta. Verifique os seus dados de acesso.');
+      throw new Error('E-mail/telefone ou palavra-passe incorretos.');
     }
-    // Default fallback profile for new Firebase Auth user
-    profileData = {
-      uid: firebaseUser.uid,
-      id: firebaseUser.uid,
-      name: firebaseUser.displayName || emailToAuth.split('@')[0],
-      email: emailToAuth,
-      role: portalRole === 'instituicao' ? 'instituicao' : (portalRole || 'pai'),
-      active: true,
-      mustChangePassword: false,
-      schoolId: 'school_horizonte_luanda',
-      institutionId: 'school_horizonte_luanda',
-      schoolName: 'Colégio Horizonte de Luanda',
-    };
+    // User exists in Firebase Auth but has no registered profile/authorization in Firestore
+    await fbSignOut(auth).catch(() => null);
+    throw new Error('Esta conta não possui cadastro ativo ou autorização no sistema escolar. Contacte a direção.');
   }
 
   // Save/merge profile to Firestore doc(users, profileData.uid)
@@ -373,6 +367,265 @@ export async function loginUser(
   return {
     user: profileData,
     mustChangePassword: !!profileData.mustChangePassword,
+  };
+}
+
+// In-memory cache for Google OAuth Access Token (DO NOT store in localStorage per security guidelines)
+let cachedGoogleAccessToken: string | null = null;
+
+export function getCachedGoogleAccessToken(): string | null {
+  return cachedGoogleAccessToken;
+}
+
+export function setCachedGoogleAccessToken(token: string | null): void {
+  cachedGoogleAccessToken = token;
+}
+
+// Automatically clear in-memory token on auth state change
+if (typeof window !== 'undefined') {
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      cachedGoogleAccessToken = null;
+    }
+  });
+}
+
+/**
+ * Workspace Gmail scopes requested for Google sign-in
+ */
+export const GMAIL_SCOPES = [
+  'https://mail.google.com/',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.compose',
+];
+
+/**
+ * Maps technical Firebase Auth error codes to user-friendly Portuguese error messages.
+ */
+export function formatFirebaseAuthError(err: any): string {
+  if (!err) return 'Ocorreu um erro desconhecido durante a autenticação.';
+  const code = err.code || '';
+  switch (code) {
+    case 'auth/user-not-found':
+      return 'Utilizador não encontrado. Verifique o seu e-mail/número ou contacte a secretaria da escola.';
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'E-mail/telefone ou palavra-passe incorretos.';
+    case 'auth/invalid-email':
+      return 'O endereço de e-mail introduzido é inválido.';
+    case 'auth/user-disabled':
+      return 'A sua conta encontra-se desativada. Contacte a instituição.';
+    case 'auth/too-many-requests':
+      return 'Acesso temporariamente bloqueado devido a múltiplas tentativas falhadas. Aguarde alguns minutos e tente novamente.';
+    case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
+      return 'Login com Google cancelado.';
+    case 'auth/popup-blocked':
+      return 'A janela pop-up foi bloqueada pelo seu navegador. Por favor, permita pop-ups para este site ou utilize um navegador compatível.';
+    case 'auth/network-request-failed':
+      return 'Não foi possível contactar o serviço de autenticação. Verifique a sua ligação à Internet.';
+    case 'auth/account-exists-with-different-credential':
+      return 'Esta conta já existe no Alô Mãe com outro método de autenticação. Entre usando o método original ou contacte o suporte escolar.';
+    case 'auth/operation-not-allowed':
+      return 'O método de autenticação Google não se encontra ativo no projeto Firebase.';
+    default:
+      return err.message || 'Falha ao autenticar no sistema. Verifique os seus dados de acesso.';
+  }
+}
+
+/**
+ * Standard alias for retrieving user-friendly error messages across UI components.
+ */
+export function getAuthErrorMessage(error: unknown): string {
+  return formatFirebaseAuthError(error);
+}
+
+/**
+ * Returns the destination route based on the authenticated user's role and state.
+ */
+export function getRouteForUserRole(role: UserRole, mustChangePassword = false): string {
+  if (role === 'instituicao' || role === 'admin') {
+    return '/admin/dashboard';
+  } else if (role === 'professor') {
+    return '/professor/turma';
+  } else {
+    return mustChangePassword ? '/pai/alterar-senha' : '/pai/inicio';
+  }
+}
+
+/**
+ * Authenticates using Google (Gmail) via Firebase Auth popup according to Option C:
+ * The Google account authenticates identity, but access is validated strictly against
+ * authorized accounts/profiles in Firestore or recognized system administrators.
+ * If the email is not registered/authorized, access is blocked and the session is cleared.
+ */
+export async function loginWithGoogle(
+  portalRole: 'pai' | 'instituicao' | 'professor' = 'pai'
+): Promise<{ user: UserProfile; isNewUser: boolean; mustChangePassword: boolean; accessToken?: string }> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+
+  // Add Google Workspace Gmail scopes to authorize sending and viewing emails
+  GMAIL_SCOPES.forEach((scope) => {
+    provider.addScope(scope);
+  });
+
+  let credential;
+  try {
+    credential = await signInWithPopup(auth, provider);
+  } catch (err: any) {
+    throw new Error(formatFirebaseAuthError(err));
+  }
+
+  // Cache access token in memory for Gmail API calls
+  const oauthCredential = GoogleAuthProvider.credentialFromResult(credential);
+  if (oauthCredential?.accessToken) {
+    cachedGoogleAccessToken = oauthCredential.accessToken;
+  }
+
+  const fbUser = credential.user;
+  const email = (fbUser.email || '').toLowerCase();
+  const uid = fbUser.uid;
+
+  // 1. Identify if this is an authorized administrative account
+  const isSuperAdmin =
+    email === 'paulopintodesenvolvedor@gmail.com' ||
+    email === 'globalinterlinkdevs@gmail.com' ||
+    email === 'direcao@colegiohorizonte.ao';
+
+  // 2. Check if user document already exists in Firestore (by UID or by Email)
+  let profileData: UserProfile | null = null;
+  let isNewUser = false;
+
+  try {
+    const docSnap = await getDoc(doc(db, 'users', uid));
+    if (docSnap.exists()) {
+      profileData = { uid, ...docSnap.data() } as UserProfile;
+    } else {
+      // Check by email query in case the user was provisioned by the school institution with another UID or pre-authorized
+      const qEmail = query(collection(db, 'users'), where('email', '==', email), limit(1));
+      const snapEmail = await getDocs(qEmail);
+      if (!snapEmail.empty) {
+        profileData = { ...snapEmail.docs[0].data(), uid } as UserProfile;
+      }
+    }
+  } catch (err) {
+    console.warn('Notice querying user from Firestore:', err);
+  }
+
+  // Check known system accounts dictionary if Firestore hasn't seeded them yet
+  const systemAccountMatch = SYSTEM_ACCOUNTS[email];
+
+  // 3. Option C Verification: Validate if account is authorized in Firestore or SYSTEM_ACCOUNTS
+  if (!profileData && !systemAccountMatch && !isSuperAdmin) {
+    // Account is authenticated by Google, but NOT authorized in the school's Firestore system!
+    await fbSignOut(auth).catch(() => null);
+    cachedGoogleAccessToken = null;
+    throw new Error(
+      `A conta Google (${email}) não se encontra autorizada no sistema escolar do Alô Mãe. ` +
+      `Para encarregados ou professores, o acesso deve ser pré-autorizado pela direção da sua instituição.`
+    );
+  }
+
+  // 4. If user is authorized via SYSTEM_ACCOUNTS or is SuperAdmin, ensure their profile document is initialized
+  if (!profileData) {
+    isNewUser = true;
+    const assignedRole: UserRole = isSuperAdmin
+      ? 'instituicao'
+      : (systemAccountMatch?.role || portalRole);
+
+    profileData = {
+      uid,
+      id: uid,
+      name: fbUser.displayName || systemAccountMatch?.name || email.split('@')[0],
+      nome: fbUser.displayName || systemAccountMatch?.name || email.split('@')[0],
+      email: email,
+      phone: fbUser.phoneNumber || systemAccountMatch?.phone || '',
+      avatarUrl: fbUser.photoURL || '',
+      role: assignedRole,
+      institutionUserType: isSuperAdmin ? 'admin' : systemAccountMatch?.institutionUserType,
+      schoolId: systemAccountMatch?.schoolId || 'school_horizonte_luanda',
+      institutionId: systemAccountMatch?.schoolId || 'school_horizonte_luanda',
+      schoolName: systemAccountMatch?.schoolName || 'Colégio Horizonte de Luanda',
+      escola_nome: systemAccountMatch?.schoolName || 'Colégio Horizonte de Luanda',
+      title: isSuperAdmin
+        ? 'Administrador Geral da Instituição'
+        : systemAccountMatch?.title ||
+          (assignedRole === 'professor' ? 'Docente' : 'Encarregado(a) de Educação'),
+      active: true,
+      emailVerified: fbUser.emailVerified || true,
+      mustChangePassword: false,
+      studentIds: systemAccountMatch?.studentIds || [],
+      classIds: systemAccountMatch?.classIds || [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+    };
+  } else {
+    // Existing verified profile: check portal compatibility if specific portal was requested
+    if (portalRole === 'instituicao' && profileData.role !== 'instituicao' && profileData.role !== 'admin' && !isSuperAdmin) {
+      await fbSignOut(auth).catch(() => null);
+      cachedGoogleAccessToken = null;
+      throw new Error(`Esta conta (${email}) não possui acesso ao portal da instituição.`);
+    }
+
+    if (portalRole === 'professor' && profileData.role !== 'professor' && !isSuperAdmin) {
+      await fbSignOut(auth).catch(() => null);
+      cachedGoogleAccessToken = null;
+      throw new Error(`Esta conta (${email}) não possui acesso ao portal do professor.`);
+    }
+
+    if (portalRole === 'pai' && profileData.role !== 'pai' && profileData.role !== 'encarregado' && !isSuperAdmin) {
+      await fbSignOut(auth).catch(() => null);
+      cachedGoogleAccessToken = null;
+      throw new Error(`Esta conta (${email}) não possui acesso ao portal do encarregado de educação.`);
+    }
+
+    // Preserve existing permissions and link Google avatar/name updates
+    profileData = {
+      ...profileData,
+      name: profileData.name || fbUser.displayName || email.split('@')[0],
+      avatarUrl: fbUser.photoURL || profileData.avatarUrl || '',
+      role: isSuperAdmin ? 'instituicao' : profileData.role,
+      lastLoginAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+  }
+
+  // Check account active status
+  if (profileData.active === false) {
+    await fbSignOut(auth).catch(() => null);
+    cachedGoogleAccessToken = null;
+    throw new Error('A sua conta encontra-se desativada. Por favor, contacte a administração da instituição.');
+  }
+
+  // 5. Save / sync authorized profile to Firestore
+  try {
+    await setDoc(doc(db, 'users', uid), profileData, { merge: true });
+  } catch (err) {
+    console.warn('Notice saving Google user profile to Firestore:', err);
+  }
+
+  // 6. Record audit log
+  recordAuditLog({
+    institutionId: profileData.schoolId || profileData.institutionId || 'school_horizonte_luanda',
+    actorUid: uid,
+    actorName: profileData.name || profileData.email,
+    actorRole: profileData.role,
+    action: isNewUser ? 'authorized_account_linked_google' : 'login_google',
+    entityType: 'users',
+    entityId: uid,
+    description: `Login Google autorizado (${email}) com perfil de ${profileData.role}`,
+    timestamp: serverTimestamp(),
+  }).catch(() => null);
+
+  return {
+    user: profileData,
+    isNewUser,
+    mustChangePassword: false,
+    accessToken: cachedGoogleAccessToken || undefined,
   };
 }
 
