@@ -99,7 +99,8 @@ export default function PocFacialPage() {
     setEmbedded(isEmbeddedInIframe());
 
     (async () => {
-      await startCamera();
+      // A câmara só é pedida no clique de "Ativar Câmara" (gesto do utilizador) —
+      // evita negação automática (e memorizada) em iframes/preview.
 
       // Se o utilizador desbloquear a permissão nas definições do navegador,
       // a câmara arranca automaticamente (sem recarregar a página).
@@ -348,8 +349,16 @@ export default function PocFacialPage() {
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/85 p-6 text-center overflow-y-auto">
                 <CameraOff className={`w-10 h-10 ${camError ? 'text-rose-400' : 'text-slate-500'}`} />
                 <p className="text-sm font-medium text-slate-200 max-w-sm">
-                  {camError ? camError.message : 'A iniciar câmara…'}
+                  {camError ? camError.message : 'Câmara desativada'}
                 </p>
+                {!camError && (
+                  <button
+                    onClick={() => startCamera()}
+                    className="inline-flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl px-4 py-2 text-sm font-medium"
+                  >
+                    <Camera className="w-4 h-4" /> Ativar Câmara
+                  </button>
+                )}
 
                 {camError?.kind === 'denied' && (
                   <div className="text-xs text-slate-400 space-y-3 max-w-sm">

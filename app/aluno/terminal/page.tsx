@@ -92,13 +92,13 @@ export default function AlunoTerminalPage() {
   const [camErr, setCamErr] = useState<{ kind: string; message: string } | null>(null);
   const [embedded, setEmbedded] = useState(false);
   const [permState, setPermState] = useState<string>(`prompt`);
-  const [cameraAttempt, setCameraAttempt] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Hardware Camera & Stream
   const [isWebcamActive, setIsWebcamActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
 
   // Real-time Facial Tracking
   const [isProcessingFrame, setIsProcessingFrame] = useState(false);
@@ -207,48 +207,64 @@ export default function AlunoTerminalPage() {
     return () => clearTimeout(timer);
   }, [confirmedStudent]);
 
-  // Initialize Camera automatically on mount (com diagnóstico iframe/permissões)
+  // A câmara NÃO é pedida automaticamente no arranque: o pedido acontece no
+  // clique de "Ativar Câmara" (gesto do utilizador → prompt legítimo; evita a
+  // negação automática — e memorizada — em iframes/preview).
   useEffect(() => {
     setEmbedded(isEmbeddedInIframe());
-    setIsWebcamActive(true);
+    if (process.env.NODE_ENV !== 'production') {
+      console.debug('[Alô Mãe] Camera environment', {
+        secureContext: window.isSecureContext,
+        protocol: window.location.protocol,
+        origin: window.location.origin,
+        mediaDevices: !!navigator.mediaDevices,
+        getUserMedia: !!navigator.mediaDevices?.getUserMedia,
+        embedded: isEmbeddedInIframe(),
+      });
+    }
   }, []);
 
-  // WebCam Stream Lifecycle — usa helper com diagnóstico preciso
+  // Cleanup ao desmontar — nunca deixar tracks presos
   useEffect(() => {
-    let stream: MediaStream | null = null;
-    let cancelled = false;
-
-    if (isWebcamActive) {
-      setCameraError(null);
-      setCamErr(null);
-
-      (async () => {
-        const res = await requestCameraStream();
-        if (cancelled) return;
-
-        if (res.stream) {
-          stream = res.stream;
-          if (videoRef.current) {
-            videoRef.current.srcObject = res.stream;
-            videoRef.current.play().catch(() => {});
-          }
-        } else {
-          console.warn('Erro ao aceder à câmara:', res.errorName, res.message);
-          setCamErr({ kind: res.errorKind || 'unknown', message: res.message });
-          setCameraError(res.message);
-          setIsWebcamActive(false);
-        }
-        setPermState(await queryCameraPermission());
-      })();
-    }
-
     return () => {
-      cancelled = true;
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
-      }
+      cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+      cameraStreamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
     };
-  }, [isWebcamActive, cameraAttempt]);
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+    cameraStreamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setIsWebcamActive(false);
+    setDetectedBox(null);
+    setLivenessStatus({ isLive: false, score: 0, text: 'Câmara desativada' });
+  }, []);
+
+  const activateCamera = useCallback(async () => {
+    setCamErr(null);
+    setCameraError(null);
+
+    // Sem múltiplos MediaStreams: para o stream anterior antes de novo pedido
+    cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
+    cameraStreamRef.current = null;
+
+    const res = await requestCameraStream();
+    if (res.stream && videoRef.current) {
+      cameraStreamRef.current = res.stream;
+      videoRef.current.srcObject = res.stream;
+      try { await videoRef.current.play(); } catch { /* autoplay policy */ }
+      setIsWebcamActive(true);
+    } else {
+      if (res.stream) res.stream.getTracks().forEach((t) => t.stop());
+      console.error('[Alô Mãe] Camera error', { name: res.errorName, message: res.message });
+      setCamErr({ kind: res.errorKind || 'unknown', message: res.message });
+      setCameraError(res.message);
+      setIsWebcamActive(false);
+    }
+    setPermState(await queryCameraPermission());
+  }, []);
 
   // Fullscreen toggle for Kiosk mode
   const toggleFullscreen = () => {
@@ -678,6 +694,15 @@ export default function AlunoTerminalPage() {
 
         {/* Central Camera HUD with Autonomous Facial Tracking */}
         <div className="relative w-full max-w-md flex flex-col items-center">
+          {isWebcamActive && (
+            <button
+              onClick={stopCamera}
+              className="absolute -top-5 right-0 z-10 text-[10px] uppercase tracking-wider text-slate-400 hover:text-white bg-[#091224]/90 border border-white/10 rounded-full px-2.5 py-1"
+            >
+              Desativar Câmara
+            </button>
+          )}
+
           {/* Circular/Rounded HUD Frame */}
           <div className="relative w-76 h-76 sm:w-88 sm:h-88 rounded-full flex items-center justify-center p-3.5 bg-gradient-to-b from-[#143A7B]/40 via-cyan-950/20 to-transparent border-2 border-dashed border-cyan-400/40 shadow-[0_0_80px_rgba(0,209,255,0.22)]">
             {/* Outer Rotating Scan Ring */}
@@ -705,12 +730,7 @@ export default function AlunoTerminalPage() {
                   </div>
                   <p className="text-sm font-bold text-white">Câmara Desativada</p>
                   <button
-                    onClick={() => {
-                      setCamErr(null);
-                      setCameraError(null);
-                      setCameraAttempt((a) => a + 1);
-                      setIsWebcamActive(true);
-                    }}
+                    onClick={activateCamera}
                     className="mt-3 px-4 py-1.5 rounded-full bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs shadow-lg active:scale-95 cursor-pointer"
                   >
                     Ativar Câmara
@@ -796,12 +816,7 @@ export default function AlunoTerminalPage() {
 
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <button
-                  onClick={() => {
-                    setCamErr(null);
-                    setCameraError(null);
-                    setCameraAttempt((a) => a + 1);
-                    setIsWebcamActive(true);
-                  }}
+                  onClick={activateCamera}
                   className="inline-flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg px-3 py-1.5 font-medium"
                 >
                   <RotateCw className="w-3.5 h-3.5" /> Tentar novamente
