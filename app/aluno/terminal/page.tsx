@@ -18,6 +18,7 @@ import {
 } from '@/lib/biometrics/engine';
 import { biometricAudio } from '@/lib/biometrics/audio-speech';
 import { offlineSyncManager } from '@/lib/biometrics/offline-sync';
+import { createFingerprintIdentifyProvider, FingerprintReaderState } from '@/lib/biometrics/fingerprint-provider';
 import {
   registerAttendanceBiometricEvent,
   evaluateNextAttendanceEvent,
@@ -337,14 +338,22 @@ export default function AlunoTerminalPage() {
     [config, studentStates]
   );
 
-  // External Android reader bridge. The native reader SDK must dispatch this event
-  // after matching a template locally; no raw fingerprint data enters the web layer.
+  // O provedor mantém templates e imagens no leitor nativo. A web recebe apenas
+  // o identificador do aluno e a confiança do match 1:N.
   useEffect(() => {
-    const handleFingerprintMatch = (event: Event) => {
-      const detail = (event as CustomEvent<{ studentId?: string; confidence?: number }>).detail;
-      if (!detail?.studentId) return;
+    const provider = createFingerprintIdentifyProvider();
+    let active = true;
 
-      const matchedStudent = activeStudentPool.find((student) => student.id === detail.studentId);
+    const unsubscribe = provider.subscribe((event) => {
+      if (!active) return;
+      if (event.type === 'state' && event.state) {
+        setFingerprintStatus(event.state as FingerprintReaderState);
+        return;
+      }
+
+      const match = event.match;
+      if (!match) return;
+      const matchedStudent = activeStudentPool.find((student) => student.id === match.studentId);
       if (!matchedStudent) {
         setFingerprintStatus('error');
         biometricAudio.playWarningBeep();
@@ -352,19 +361,17 @@ export default function AlunoTerminalPage() {
       }
 
       setFingerprintStatus('connected');
-      void processRecognizedStudent(matchedStudent, detail.confidence ?? 0.92, 'FINGERPRINT');
-    };
+      void processRecognizedStudent(matchedStudent, match.confidence, 'FINGERPRINT');
+    });
 
-    const handleFingerprintState = (event: Event) => {
-      const state = (event as CustomEvent<{ state?: 'standby' | 'reading' | 'connected' | 'error' }>).detail?.state;
-      if (state) setFingerprintStatus(state);
-    };
+    void provider.isAvailable().then((available) => {
+      if (active && !available) setFingerprintStatus('standby');
+    });
 
-    window.addEventListener('alomae:fingerprint-match', handleFingerprintMatch);
-    window.addEventListener('alomae:fingerprint-state', handleFingerprintState);
     return () => {
-      window.removeEventListener('alomae:fingerprint-match', handleFingerprintMatch);
-      window.removeEventListener('alomae:fingerprint-state', handleFingerprintState);
+      active = false;
+      unsubscribe();
+      void provider.cancel();
     };
   }, [activeStudentPool, processRecognizedStudent]);
 
