@@ -16,6 +16,7 @@ import {
   matchStudentLocally,
   generateSeedEmbeddingForStudent,
 } from '@/lib/biometrics/engine';
+import { extractWithHuman } from '@/lib/biometrics/human-provider';
 import { biometricAudio } from '@/lib/biometrics/audio-speech';
 import { offlineSyncManager } from '@/lib/biometrics/offline-sync';
 import { createFingerprintIdentifyProvider, FingerprintReaderState } from '@/lib/biometrics/fingerprint-provider';
@@ -383,14 +384,15 @@ export default function AlunoTerminalPage() {
     let loopTimeout: NodeJS.Timeout;
 
     const runRecognitionLoop = async () => {
-      if (!videoRef.current || videoRef.current.readyState < 2 || isProcessingFrame) {
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || isProcessingFrame) {
         if (isMounted) loopTimeout = setTimeout(runRecognitionLoop, 200);
         return;
       }
 
       try {
         setIsProcessingFrame(true);
-        const result = await extractBiometricFromSource(videoRef.current);
+        const result = await extractWithHuman(video).catch(() => extractBiometricFromSource(video));
 
         if (!isMounted) return;
 
