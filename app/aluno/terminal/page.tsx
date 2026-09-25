@@ -159,7 +159,7 @@ export default function AlunoTerminalPage() {
     const filtered = students.filter(
       (s) => (s.currentClassId || s.classId || s.turma_id) === config.targetClassId
     );
-    return filtered.length > 0 ? filtered : students;
+    return filtered;
   }, [students, config.targetClassId]);
 
   // Subscribe to offline sync manager

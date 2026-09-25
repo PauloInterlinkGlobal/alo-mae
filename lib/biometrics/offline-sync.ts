@@ -1,5 +1,5 @@
-import { AccessLog, AttendanceEventType } from '@/lib/types';
-import { registerBiometricAccess as firestoreRegisterAccess } from '@/services/access-logs.service';
+import { AttendanceEventType } from '@/lib/types';
+import { registerAttendanceBiometricEvent } from '@/services/attendance-engine.service';
 
 export interface PendingOfflineLog {
   id: string;
@@ -135,12 +135,15 @@ class OfflineSyncManager {
 
     for (const item of currentItems) {
       try {
-        await firestoreRegisterAccess(
-          item.studentId,
-          item.type,
-          item.method,
-          item.location
-        );
+        await registerAttendanceBiometricEvent({
+          studentId: item.studentId,
+          eventType: item.type === 'entry' || item.type === 'exit' ? undefined : item.type,
+          preferredMode: item.type === 'entry' ? 'ENTRADA' : item.type === 'exit' ? 'SAIDA_OFICIAL' : undefined,
+          method: item.method === 'facial' ? 'FACIAL' : item.method === 'fingerprint' ? 'FINGERPRINT' : 'MANUAL',
+          location: item.location,
+          deviceId: 'terminal-01',
+          livenessPassed: item.method !== 'manual',
+        });
 
         // Remove item from queue on success
         this.queue = this.queue.filter((q) => q.id !== item.id);
