@@ -18,9 +18,9 @@ import {
 } from '@/lib/biometrics/engine';
 import { biometricAudio } from '@/lib/biometrics/audio-speech';
 import {
-  requestCameraStream, queryCameraPermission, isEmbeddedInIframe,
-  captureStillViaInput, loadImageFromDataUrl,
+  queryCameraPermission, isEmbeddedInIframe, loadImageFromDataUrl,
 } from '@/lib/biometrics/camera';
+import { resolveLiveProvider, resolveStillProvider } from '@/lib/biometrics/camera-service';
 import { offlineSyncManager } from '@/lib/biometrics/offline-sync';
 import {
   registerAttendanceBiometricEvent,
@@ -250,7 +250,8 @@ export default function AlunoTerminalPage() {
     cameraStreamRef.current?.getTracks().forEach((t) => t.stop());
     cameraStreamRef.current = null;
 
-    const res = await requestCameraStream();
+    const provider = await resolveLiveProvider();
+    const res = await provider.getStream();
     if (res.stream && videoRef.current) {
       cameraStreamRef.current = res.stream;
       videoRef.current.srcObject = res.stream;
@@ -401,7 +402,8 @@ export default function AlunoTerminalPage() {
   // FALLBACK NÍVEL 2 — foto pela câmara nativa do celular (funciona em iframe)
   const handleNativeCameraCapture = useCallback(async () => {
     try {
-      const shot = await captureStillViaInput();
+      const provider = await resolveStillProvider();
+      const shot = await provider.capture();
       if (!shot) return; // utilizador cancelou
 
       const img = await loadImageFromDataUrl(shot.dataUrl);

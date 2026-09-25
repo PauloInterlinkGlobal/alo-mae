@@ -17,9 +17,9 @@ import {
   ExternalLink, RotateCw,
 } from 'lucide-react';
 import {
-  requestCameraStream, queryCameraPermission, isEmbeddedInIframe,
-  captureStillViaInput, loadImageFromDataUrl,
+  queryCameraPermission, isEmbeddedInIframe, loadImageFromDataUrl,
 } from '@/lib/biometrics/camera';
+import { resolveLiveProvider, resolveStillProvider } from '@/lib/biometrics/camera-service';
 import {
   loadHumanEngine, detectFace, getEngineStatus,
   HumanFaceCapture,
@@ -78,7 +78,8 @@ export default function PocFacialPage() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
 
-    const res = await requestCameraStream();
+    const provider = await resolveLiveProvider();
+    const res = await provider.getStream();
     if (res.stream) {
       streamRef.current = res.stream;
       if (videoRef.current) {
@@ -234,7 +235,8 @@ export default function PocFacialPage() {
   // FALLBACK NÍVEL 2 — foto pela câmara nativa do celular (funciona em iframe)
   const handleStillEnroll = async () => {
     try {
-      const shot = await captureStillViaInput();
+      const provider = await resolveStillProvider();
+      const shot = await provider.capture();
       if (!shot) return;
       const img = await loadImageFromDataUrl(shot.dataUrl);
       const capture = await detectFace(img);
@@ -252,7 +254,8 @@ export default function PocFacialPage() {
 
   const handleStillIdentify = async () => {
     try {
-      const shot = await captureStillViaInput();
+      const provider = await resolveStillProvider();
+      const shot = await provider.capture();
       if (!shot) return;
       const img = await loadImageFromDataUrl(shot.dataUrl);
       const capture = await detectFace(img);
