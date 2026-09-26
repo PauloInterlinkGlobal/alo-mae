@@ -33,6 +33,7 @@ import {
   Sparkles,
   X,
 } from 'lucide-react';
+import FirebaseDomainAlert from '@/components/FirebaseDomainAlert';
 
 export default function LoginEncarregadoPage() {
   const router = useRouter();
@@ -351,7 +352,7 @@ export default function LoginEncarregadoPage() {
               <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start justify-between gap-2 shadow-xs animate-fade-in">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <span className="leading-snug font-medium">{errorMsg}</span>
+                  <span className="leading-snug font-medium break-words">{errorMsg}</span>
                 </div>
                 <button
                   type="button"
@@ -363,6 +364,8 @@ export default function LoginEncarregadoPage() {
                 </button>
               </div>
             )}
+
+            {errorMsg && <FirebaseDomainAlert errorMsg={errorMsg} />}
 
             {/* Google Sign-in Button */}
             <div className="mb-5">

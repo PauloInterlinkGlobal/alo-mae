@@ -6,6 +6,7 @@
     "dev": "next dev -p 3000 -H 0.0.0.0",
     "build": "NODE_ENV=production next build",
     "typecheck": "tsc --noEmit",
+    "check:firebase": "node scripts/check-firebase.mjs",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
     "cap:build": "npx cap build android",

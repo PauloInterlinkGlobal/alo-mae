@@ -402,16 +402,56 @@ export const GMAIL_SCOPES = [
 ];
 
 /**
+ * Helper: mensagem detalhada para auth/unauthorized-domain com instruções acionáveis.
+ */
+export function getUnauthorizedDomainHelp(): string {
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '—';
+  const origin = typeof window !== 'undefined' ? window.location.origin : '—';
+  return (
+    `Domínio não autorizado: "${hostname}". ` +
+    `O Google bloqueou o login porque este domínio não está na lista de Authorized domains do Firebase.\n\n` +
+    `Correção (2 min, sem alterar código):\n` +
+    `1. Abra Firebase Console > Authentication > Settings > Authorized domains (https://console.firebase.google.com/project/${firebaseConfig.projectId}/authentication/settings)\n` +
+    `2. Clique em "Add domain" e adicione exatamente: ${hostname}\n` +
+    `3. Se estiver no AI Studio / Workstations, adicione também: *.cloudworkstations.dev , *.aistudio.google.com e ai-studio-almeconexoquecui-c859596d-ed42-4f57-9605-de70a18847eb\n` +
+    `4. Em Google Cloud Console > APIs & Services > Credentials > API key (${firebaseConfig.apiKey ? '***' + firebaseConfig.apiKey.slice(-6) : ''}) > Application restrictions > Website restrictions, confirme que "${hostname}" ou "*" está permitido.\n` +
+    `5. Aguarde 30-60s e tente novamente em ${origin}.\n\n` +
+    `Dica dev: execute no console do navegador getFirebaseDiagnostics() para ver todos os domínios esperados.`
+  );
+}
+
+/**
  * Maps technical Firebase Auth error codes to user-friendly Portuguese error messages.
+ * Auditoria completa: cobre configuração de domínio, OAuth, popup, rede e Firestore.
  */
 export function formatFirebaseAuthError(err: any): string {
   if (!err) return 'Ocorreu um erro desconhecido durante a autenticação.';
   const code = err.code || '';
+  const rawMsg: string = typeof err.message === 'string' ? err.message : '';
+  const isUnauthorizedDomain =
+    code === 'auth/unauthorized-domain' ||
+    code === 'auth/invalid-credential' && rawMsg.includes('unauthorized-domain') ||
+    rawMsg.includes('auth/unauthorized-domain') ||
+    rawMsg.includes('The current domain is not authorized');
+
+  if (isUnauthorizedDomain) {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    // Log detalhado em console para auditoria
+    console.warn(
+      '[Firebase Auth] auth/unauthorized-domain detectado',
+      { hostname, authDomain: (firebaseConfig as any).authDomain, projectId: (firebaseConfig as any).projectId, origin: typeof window !== 'undefined' ? window.location.origin : '' },
+      '\nSiga as instruções em getUnauthorizedDomainHelp()'
+    );
+    // Mensagem curta para UI + detalhes extensos no console / help helper
+    return `Domínio não autorizado (${hostname}). Adicione "${hostname}" em Firebase Console > Authentication > Settings > Authorized domains. (Ver console para passos completos).`;
+  }
+
   switch (code) {
     case 'auth/user-not-found':
       return 'Utilizador não encontrado. Verifique o seu e-mail/número ou contacte a secretaria da escola.';
     case 'auth/wrong-password':
     case 'auth/invalid-credential':
+      // invalid-credential genérico já tratado acima para unauthorized-domain
       return 'E-mail/telefone ou palavra-passe incorretos.';
     case 'auth/invalid-email':
       return 'O endereço de e-mail introduzido é inválido.';
@@ -429,8 +469,29 @@ export function formatFirebaseAuthError(err: any): string {
     case 'auth/account-exists-with-different-credential':
       return 'Esta conta já existe no Alô Mãe com outro método de autenticação. Entre usando o método original ou contacte o suporte escolar.';
     case 'auth/operation-not-allowed':
-      return 'O método de autenticação Google não se encontra ativo no projeto Firebase.';
+      return 'O método de autenticação Google não se encontra ativo no projeto Firebase. Ative-o em Firebase Console > Authentication > Sign-in method > Google > Enable.';
+    case 'auth/api-key-not-valid.-please-pass-a-valid-api-key.':
+    case 'auth/invalid-api-key':
+      return 'Chave de API Firebase inválida. Verifique NEXT_PUBLIC_FIREBASE_API_KEY ou firebase-applet-config.json e restrições de chave no Google Cloud Console.';
+    case 'auth/insufficient-permission':
+    case 'auth/permission-denied':
+      return 'Sem permissão para concluir o login. Verifique as regras Firestore e restrições da API key.';
+    case 'auth/app-not-authorized':
+      return 'Aplicação não autorizada para este projeto Firebase. Verifique o Bundle/ID do OAuth client (oAuthClientId) e as restrições de origem.';
+    case 'auth/invalid-verification-code':
+    case 'auth/missing-verification-code':
+      return 'Código de verificação inválido ou ausente.';
     default:
+      // Fallback: detecta mensagens de Firestore também
+      if (rawMsg.includes('firestore/unavailable') || rawMsg.includes('Could not reach Cloud Firestore')) {
+        return 'Não foi possível ligar ao Firestore. Verifique se a base foi criada em Firebase Console > Firestore Database e se as regras permitem leitura.';
+      }
+      if (rawMsg.includes('Missing or insufficient permissions')) {
+        return 'Permissão negada pelo Firestore. Sessão poderá ter expirado — inicie sessão novamente. Se o erro persistir, verifique firestore.rules.';
+      }
+      if (rawMsg.includes('auth/unauthorized-domain') || rawMsg.includes('unauthorized domain')) {
+        return getUnauthorizedDomainHelp();
+      }
       return err.message || 'Falha ao autenticar no sistema. Verifique os seus dados de acesso.';
   }
 }

@@ -28,6 +28,7 @@ import {
   Loader2,
   X,
 } from 'lucide-react';
+import FirebaseDomainAlert from '@/components/FirebaseDomainAlert';
 
 export default function LoginInstituicaoPage() {
   const router = useRouter();
@@ -247,7 +248,7 @@ export default function LoginInstituicaoPage() {
               <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start justify-between gap-2 shadow-xs animate-fade-in">
                 <div className="flex items-start gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                  <span className="leading-snug font-medium">{errorMsg}</span>
+                  <span className="leading-snug font-medium break-words">{errorMsg}</span>
                 </div>
                 <button
                   type="button"
@@ -259,6 +260,8 @@ export default function LoginInstituicaoPage() {
                 </button>
               </div>
             )}
+
+            {errorMsg && <FirebaseDomainAlert errorMsg={errorMsg} />}
 
             {/* Admin Quick Credentials Card */}
             <div className="mb-5 p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl">
