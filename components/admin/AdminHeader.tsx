@@ -74,11 +74,9 @@ export const AdminHeader: React.FC = () => {
             </div>
             <div className="hidden sm:block text-left">
               <p className="text-xs font-semibold text-slate-900 leading-tight">
-                {currentUser?.name || currentUser?.nome || 'Paulo Pinto'}
+                {currentUser?.name || 'Dr. Carlos Manuel'}
               </p>
-              <p className="text-[10px] text-slate-500 font-medium">
-                {currentUser?.title || 'Administrador Geral da Instituição'}
-              </p>
+              <p className="text-[10px] text-slate-500">Direção Geral</p>
             </div>
 
             <button

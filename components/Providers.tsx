@@ -6,7 +6,6 @@ import { ComprovanteModal } from '@/components/ComprovanteModal';
 import { GuiaAtendimentoModal } from '@/components/GuiaAtendimentoModal';
 import { GlobalToast } from '@/components/GlobalToast';
 import { MobileAppBridge } from '@/components/MobileAppBridge';
-import { ToastProvider } from '@/components/Toast';
 
 function GlobalModals() {
   const {
@@ -38,11 +37,9 @@ function GlobalModals() {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ToastProvider>
-      <SystemProvider>
-        {children}
-        <GlobalModals />
-      </SystemProvider>
-    </ToastProvider>
+    <SystemProvider>
+      {children}
+      <GlobalModals />
+    </SystemProvider>
   );
 }

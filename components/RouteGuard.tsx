@@ -1,14 +1,11 @@
 'use client';
 
-import React, { useState, useSyncExternalStore } from 'react';
+import React, { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSystem } from '@/lib/context';
 import { UserRole } from '@/lib/types';
-import { ShieldAlert, LogIn, ArrowRight, UserX, KeyRound, ShieldCheck, Loader2 } from 'lucide-react';
+import { ShieldAlert, LogIn, ArrowRight, UserX, KeyRound } from 'lucide-react';
 import { Logo } from '@/components/LogoImg';
-import { loginUser, loginWithGoogle } from '@/services/auth.service';
-
-const emptySubscribe = () => () => {};
 
 interface RouteGuardProps {
   children: React.ReactNode;
@@ -16,12 +13,9 @@ interface RouteGuardProps {
 }
 
 export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }) => {
-  const { currentUser, isAuthenticated, logout, setCurrentUser } = useSystem();
+  const { currentUser, isAuthenticated, logout } = useSystem();
   const router = useRouter();
   const pathname = usePathname();
-  const hasMounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
-  const [isQuickLoggingIn, setIsQuickLoggingIn] = useState<boolean>(false);
-  const [isGoogleLoggingIn, setIsGoogleLoggingIn] = useState<boolean>(false);
 
   // Determine appropriate login route based on target roles
   const getLoginRoute = () => {
@@ -30,81 +24,9 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
     return '/login';
   };
 
-  const handleGoogleLogin = async () => {
-    setIsGoogleLoggingIn(true);
-    try {
-      const targetRole = allowedRoles.includes('instituicao') || allowedRoles.includes('admin')
-        ? 'instituicao'
-        : allowedRoles.includes('professor')
-        ? 'professor'
-        : 'pai';
-      const { user } = await loginWithGoogle(targetRole);
-      const userAccount = {
-        ...user,
-        id: user.uid,
-        name: user.name || user.nome || '',
-        phone: user.phone || user.telefone || '',
-        schoolName: user.schoolName || 'Colégio Horizonte de Luanda',
-      };
-      setCurrentUser(userAccount);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('alomae_user', JSON.stringify(userAccount));
-      }
-      if (user.role === 'instituicao' || user.role === 'admin') {
-        router.push('/admin/dashboard');
-      } else if (user.role === 'professor') {
-        router.push('/professor/turma');
-      } else {
-        router.push('/pai/inicio');
-      }
-    } catch (err: any) {
-      console.error('Falha ao autenticar com Google:', err);
-    } finally {
-      setIsGoogleLoggingIn(false);
-    }
-  };
-
-  const handleQuickLoginAsAdmin = async () => {
-    setIsQuickLoggingIn(true);
-    try {
-      const { user } = await loginUser('paulopintodesenvolvedor@gmail.com', 'intituicao123', 'instituicao');
-      const userAccount = {
-        ...user,
-        id: user.uid,
-        name: user.name || user.nome || 'Paulo Pinto',
-        phone: user.phone || user.telefone || '+244 923 000 001',
-        schoolName: 'Colégio Horizonte de Luanda',
-      };
-      setCurrentUser(userAccount);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('alomae_user', JSON.stringify(userAccount));
-      }
-      router.push('/admin/dashboard');
-    } catch (err: any) {
-      console.error('Falha ao autenticar admin:', err);
-      router.push('/login-admin');
-    } finally {
-      setIsQuickLoggingIn(false);
-    }
-  };
-
-  // Prevent flash before local storage hydration completes
-  if (!hasMounted) {
-    return (
-      <div className="min-h-screen bg-[#0D1B3D] flex items-center justify-center p-4">
-        <div className="flex flex-col items-center gap-3 text-white">
-          <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
-          <p className="text-xs text-blue-200">A verificar credenciais de acesso...</p>
-        </div>
-      </div>
-    );
-  }
-
   // If not authenticated, prompt login
   if (!isAuthenticated || !currentUser) {
     const loginRoute = getLoginRoute();
-    const isTargetingAdmin = allowedRoles.some((r) => r === 'instituicao' || r === 'admin');
-
     return (
       <div className="min-h-screen bg-[#0D1B3D] flex items-center justify-center p-4">
         <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
@@ -117,49 +39,13 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
           <p className="text-[#687280] text-sm mb-6">
             Por favor, inicie sessão com as suas credenciais oficiais para aceder a esta área da plataforma.
           </p>
-
-          <div className="space-y-3">
-            <button
-              onClick={handleGoogleLogin}
-              disabled={isGoogleLoggingIn}
-              className="w-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 py-2.5 px-4 rounded-xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all shadow-xs active:scale-[0.98] cursor-pointer"
-            >
-              {isGoogleLoggingIn ? (
-                <Loader2 className="w-4 h-4 animate-spin text-slate-600" />
-              ) : (
-                <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-              )}
-              <span>Entrar com a Conta Google</span>
-            </button>
-
-            {isTargetingAdmin && (
-              <button
-                onClick={handleQuickLoginAsAdmin}
-                disabled={isQuickLoggingIn}
-                className="w-full bg-[#0D1B3D] hover:bg-black text-white py-3 px-4 rounded-xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.98] cursor-pointer"
-              >
-                {isQuickLoggingIn ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                ) : (
-                  <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                )}
-                <span>Entrar como Paulo Pinto (Admin Oficial)</span>
-              </button>
-            )}
-
-            <button
-              onClick={() => router.push(loginRoute)}
-              className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-3 px-4 rounded-xl font-medium text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.98] cursor-pointer"
-            >
-              <span>Ir para o Ecrã de Login</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            onClick={() => router.push(loginRoute)}
+            className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-3 px-4 rounded-xl font-medium flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.98] cursor-pointer"
+          >
+            <span>Ir para o Ecrã de Login</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
         </div>
       </div>
     );
@@ -259,39 +145,11 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
           </div>
 
           <div className="flex flex-col gap-2.5">
-            {allowedRoles.some((r) => r === 'instituicao' || r === 'admin') && (
-              <>
-                <button
-                  onClick={handleQuickLoginAsAdmin}
-                  disabled={isQuickLoggingIn}
-                  className="w-full bg-[#0D1B3D] hover:bg-black text-white py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
-                >
-                  {isQuickLoggingIn ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-cyan-400" />
-                  ) : (
-                    <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                  )}
-                  <span>Entrar com Conta de Administrador (Paulo Pinto)</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    logout();
-                    router.push('/login-admin');
-                  }}
-                  className="w-full bg-slate-800 hover:bg-slate-900 text-white py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
-                >
-                  <span>Fazer Login como Administrador (Instituição)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </>
-            )}
-
             <button
               onClick={() => router.push(targetRoute)}
               className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2.5 px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 transition-all shadow-sm cursor-pointer"
             >
-              <span>Ir para o meu Portal ({roleLabels[currentUser.role] || currentUser.role})</span>
+              <span>Ir para o meu Portal</span>
               <ArrowRight className="w-4 h-4" />
             </button>
 
@@ -300,7 +158,7 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
                 logout();
                 router.push('/');
               }}
-              className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 px-4 rounded-xl text-xs font-medium transition-all cursor-pointer"
+              className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 py-2.5 px-4 rounded-xl text-xs font-medium transition-all cursor-pointer"
             >
               Terminar Sessão Atual
             </button>
