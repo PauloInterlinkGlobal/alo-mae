@@ -97,7 +97,7 @@ function trackPreserved(collectionName, docId) {
   report.documentsExisting[collectionName] = (report.documentsExisting[collectionName] || 0) + 1;
 }
 
-const FIRESTORE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyDH9VwxBdzO3uFFUvGbt_E3AFu9eNXRXV';
+const FIRESTORE_API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'AIzaSyDH9VwxBdzO3uFFUvGbt_E3AFu9eNXRXvI';
 const FIRESTORE_BASE_URL = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
 function toFirestoreValue(val) {
