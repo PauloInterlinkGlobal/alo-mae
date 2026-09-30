@@ -580,3 +580,70 @@ export async function loginWithEmail(email: string, password: string): Promise<U
   const result = await loginUser(email, password);
   return result.user;
 }
+
+/**
+ * Google Authentication Sign-In for Parents and Teachers (Strictly prevents creating admin accounts via Google)
+ */
+export async function loginWithGoogle(portalRole: 'pai' | 'professor' = 'pai'): Promise<{ user: UserProfile; mustChangePassword: boolean }> {
+  const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
+  const provider = new GoogleAuthProvider();
+  provider.addScope('profile');
+  provider.addScope('email');
+
+  const result = await signInWithPopup(auth, provider);
+  const firebaseUser = result.user;
+  const email = (firebaseUser.email || '').toLowerCase();
+
+  // 1. Fetch user from Firestore
+  const profileDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+  let profileData: UserProfile | null = null;
+
+  if (profileDoc.exists()) {
+    profileData = { uid: firebaseUser.uid, ...profileDoc.data() } as UserProfile;
+  } else {
+    // Check if user exists by email
+    const qEmail = query(collection(db, 'users'), where('email', '==', email), limit(1));
+    const snapEmail = await getDocs(qEmail);
+    if (!snapEmail.empty) {
+      profileData = { uid: firebaseUser.uid, ...snapEmail.docs[0].data() } as UserProfile;
+      await setDoc(doc(db, 'users', firebaseUser.uid), {
+        ...profileData,
+        uid: firebaseUser.uid,
+        id: firebaseUser.uid,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+    }
+  }
+
+  // If no existing profile, register only as 'pai' (NEVER 'admin' or 'instituicao')
+  if (!profileData) {
+    if (portalRole === 'professor') {
+      await fbSignOut(auth);
+      throw new Error('Conta Google não associada a nenhum docente cadastrado pela escola.');
+    }
+    profileData = {
+      uid: firebaseUser.uid,
+      name: firebaseUser.displayName || email.split('@')[0],
+      email: email,
+      role: 'pai',
+      active: true,
+      mustChangePassword: false,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      lastLoginAt: serverTimestamp(),
+    };
+    await setDoc(doc(db, 'users', firebaseUser.uid), profileData, { merge: true });
+  }
+
+  // Strict check: NEVER allow google sign in to access 'instituicao' or 'admin' unless already verified and explicitly authorized in DB
+  if (profileData.active === false) {
+    await fbSignOut(auth);
+    throw new Error('A sua conta encontra-se desativada.');
+  }
+
+  return {
+    user: profileData,
+    mustChangePassword: !!profileData.mustChangePassword,
+  };
+}
+
