@@ -2,7 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { UserProfile, Student, SchoolClass } from '@/lib/types';
-import { getParents, updateParentContact } from '@/services/users.service';
+import {
+  getParents,
+  updateParentContact,
+  getPendingRegistrations,
+  reviewUserRegistrationService,
+} from '@/services/users.service';
 import { getStudents } from '@/services/students.service';
 import { getClasses } from '@/services/classes.service';
 import {
@@ -35,6 +40,7 @@ import {
 
 export const PaisTab: React.FC = () => {
   const [parents, setParents] = useState<UserProfile[]>([]);
+  const [pendingRegistrations, setPendingRegistrations] = useState<UserProfile[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [classes, setClasses] = useState<SchoolClass[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,18 +89,38 @@ export const PaisTab: React.FC = () => {
   async function loadData() {
     setLoading(true);
     try {
-      const [pList, sList, cList] = await Promise.all([
+      const [pList, sList, cList, pending] = await Promise.all([
         getParents(currentSchoolId),
         getStudents(currentSchoolId),
         getClasses(currentSchoolId),
+        getPendingRegistrations('pai'),
       ]);
       setParents(pList);
       setStudents(sList);
       setClasses(cList);
+      setPendingRegistrations(pending);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleReviewAction(uid: string, action: 'approve' | 'reject' | 'suspend') {
+    setIsSaving(true);
+    try {
+      await reviewUserRegistrationService(uid, action, currentSchoolId);
+      const labels = {
+        approve: 'Cadastro aprovado com sucesso! Encarregado agora está ativo.',
+        reject: 'Cadastro rejeitado pela instituição.',
+        suspend: 'Conta de encarregado suspensa.',
+      };
+      showToast(labels[action]);
+      await loadData();
+    } catch (err: any) {
+      alert('Erro ao processar cadastro: ' + err.message);
+    } finally {
+      setIsSaving(false);
     }
   }
 
@@ -276,10 +302,10 @@ export const PaisTab: React.FC = () => {
           </div>
           <div>
             <h4 className="font-bold text-xs text-[#0D1B3D]">
-              Gestão Centralizada de Encarregados (RBAC)
+              Gestão Centralizada & Autocadastro de Encarregados
             </h4>
             <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
-              O encarregado não possui cadastro público. O provisionamento de contas, emissão de senhas temporárias e associação de educandos é gerido exclusivamente pela administração escolar.
+              Os encarregados podem ser cadastrados institucionalmente pela secretaria ou efetuar autocadastro com conta Google (sujeito à aprovação prévia antes do acesso).
             </p>
           </div>
         </div>
@@ -292,6 +318,109 @@ export const PaisTab: React.FC = () => {
           <span>Cadastrar Novo Encarregado</span>
         </button>
       </div>
+
+      {/* Seção de Cadastros Pendentes / Análise Institucional */}
+      {pendingRegistrations.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm overflow-hidden">
+          <div className="bg-amber-50/80 px-5 py-3.5 border-b border-amber-200/80 flex items-center justify-between">
+            <div className="flex items-center gap-2 text-amber-900 font-semibold text-xs sm:text-sm">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <span>Cadastros Pendentes & Análise Institucional ({pendingRegistrations.length})</span>
+            </div>
+            <span className="text-[10px] bg-amber-200/80 text-amber-900 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+              Aprovação Necessária
+            </span>
+          </div>
+
+          <div className="divide-y divide-slate-100 overflow-x-auto">
+            {pendingRegistrations.map((u) => {
+              const regDate = u.createdAt?.toDate
+                ? u.createdAt.toDate().toLocaleDateString('pt-AO')
+                : 'Recente';
+              const isPending = !u.status || u.status === 'pending';
+              const isRejected = u.status === 'rejected';
+              const isSuspended = u.status === 'suspended';
+
+              return (
+                <div
+                  key={u.uid}
+                  className="p-4 sm:px-5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-50/60 transition-colors"
+                >
+                  <div className="flex items-start sm:items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 shrink-0 text-sm">
+                      {u.name?.charAt(0).toUpperCase() || 'E'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm text-[#0D1B3D]">{u.name}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-blue-50 text-[#143A7B] border border-blue-100">
+                          {u.authProvider === 'google' ? 'Google' : 'Credencial'}
+                        </span>
+                        {isPending && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-100 text-amber-800">
+                            Pendente
+                          </span>
+                        )}
+                        {isRejected && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-rose-100 text-rose-800">
+                            Rejeitado
+                          </span>
+                        )}
+                        {isSuspended && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-orange-100 text-orange-800">
+                            Suspenso
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5 flex-wrap">
+                        <span>{u.email}</span>
+                        {u.phone && <span>• {u.phone}</span>}
+                        <span>• Registado a: {regDate}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                    <button
+                      onClick={() => handleReviewAction(u.uid, 'approve')}
+                      disabled={isSaving}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                      title="Aprovar e ativar acesso"
+                    >
+                      <UserCheck className="w-3.5 h-3.5" />
+                      <span>Aprovar</span>
+                    </button>
+
+                    {!isRejected && (
+                      <button
+                        onClick={() => handleReviewAction(u.uid, 'reject')}
+                        disabled={isSaving}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 active:scale-95 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all border border-rose-200 cursor-pointer disabled:opacity-50"
+                        title="Rejeitar cadastro"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Rejeitar</span>
+                      </button>
+                    )}
+
+                    {!isSuspended && !isRejected && (
+                      <button
+                        onClick={() => handleReviewAction(u.uid, 'suspend')}
+                        disabled={isSaving}
+                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 active:scale-95 rounded-lg text-xs font-medium flex items-center gap-1 transition-all border border-slate-200 cursor-pointer disabled:opacity-50"
+                        title="Suspender acesso"
+                      >
+                        <UserX className="w-3.5 h-3.5" />
+                        <span>Suspender</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Controls Bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">

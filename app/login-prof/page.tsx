@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSystem } from '@/lib/context';
-import { loginUser, sendPasswordReset } from '@/services/auth.service';
+import { loginUser, sendPasswordReset, loginWithGoogle } from '@/services/auth.service';
 import { Logo } from '@/components/LogoImg';
 import {
   GraduationCap,
@@ -17,6 +17,7 @@ import {
   CheckCircle,
   ArrowLeft,
   AlertCircle,
+  Clock,
 } from 'lucide-react';
 
 export default function LoginProfessorPage() {
@@ -32,6 +33,39 @@ export default function LoginProfessorPage() {
   const [showResetModal, setShowResetModal] = useState<boolean>(false);
   const [resetEmail, setResetEmail] = useState<string>('');
   const [isSendingReset, setIsSendingReset] = useState<boolean>(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState<boolean>(false);
+  const [pendingNotice, setPendingNotice] = useState<string>('');
+
+  const handleGoogleLogin = async () => {
+    setIsGoogleLoading(true);
+    setErrorMsg('');
+    setResetSuccessMsg('');
+    setPendingNotice('');
+
+    try {
+      const result = await loginWithGoogle('professor');
+      if (result.success && result.user) {
+        const userAccount = {
+          ...result.user,
+          id: result.user.uid,
+          name: result.user.name || result.user.nome || '',
+          phone: result.user.phone || result.user.telefone || '',
+          schoolName: 'Colégio Horizonte de Luanda',
+        };
+        setCurrentUser(userAccount);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('alomae_user', JSON.stringify(userAccount));
+        }
+        router.push('/professor/turma');
+      } else {
+        setPendingNotice(result.message || 'Registo submetido. A sua conta aguarda aprovação pela administração escolar.');
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Ocorreu um erro ao autenticar com o Google.');
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,6 +176,13 @@ export default function LoginProfessorPage() {
               </div>
             )}
 
+            {pendingNotice && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-xl flex items-start gap-2">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <span className="leading-snug">{pendingNotice}</span>
+              </div>
+            )}
+
             {errorMsg && (
               <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
@@ -226,9 +267,56 @@ export default function LoginProfessorPage() {
               </button>
             </form>
 
+            {/* Divisor Visual */}
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-white px-2.5 text-slate-400 font-medium">ou</span>
+              </div>
+            </div>
+
+            {/* Continuar com Google */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={isLoading || isGoogleLoading}
+              className="w-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 py-2.5 px-4 rounded-xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-2.5 shadow-xs transition-all cursor-pointer disabled:opacity-60 active:scale-[0.99]"
+            >
+              {isGoogleLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-indigo-900 border-t-transparent rounded-full animate-spin" />
+                  <span>A autenticar com Google...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.98 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+                    />
+                  </svg>
+                  <span>Continuar com Google</span>
+                </>
+              )}
+            </button>
+
             <div className="mt-5 pt-4 border-t border-slate-100 text-center">
               <p className="text-[11px] text-slate-500">
-                O cadastro de professores e atribuição de turmas é efetuado pela direção pedagógica da instituição.
+                O autocadastro com Google ou emissão de credenciais está sujeito à aprovação e atribuição de turmas pela direção pedagógica.
               </p>
               <div className="mt-3 flex items-center justify-center gap-3 text-xs">
                 <Link href="/login" className="text-slate-500 hover:text-indigo-900">

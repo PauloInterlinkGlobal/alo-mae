@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.seedDatabase = exports.onGradeApproved = exports.onMiniPautaApproved = exports.recalculateClassStats = exports.onAccessLogCreated = exports.linkParentToStudent = exports.provisionTeacherClass = exports.provisionTerminalDevice = exports.enrollTeacher = exports.enrollStudent = void 0;
+exports.seedDatabase = exports.onGradeApproved = exports.onMiniPautaApproved = exports.recalculateClassStats = exports.onAccessLogCreated = exports.reviewUserRegistration = exports.linkParentToStudent = exports.provisionTeacherClass = exports.provisionTerminalDevice = exports.enrollTeacher = exports.enrollStudent = void 0;
 const admin = __importStar(require("firebase-admin"));
 // Inicializar SDK Admin do Firebase para o projeto liga-so
 if (!admin.apps.length) {
@@ -49,6 +49,7 @@ Object.defineProperty(exports, "enrollTeacher", { enumerable: true, get: functio
 Object.defineProperty(exports, "provisionTerminalDevice", { enumerable: true, get: function () { return auth_1.provisionTerminalDevice; } });
 Object.defineProperty(exports, "provisionTeacherClass", { enumerable: true, get: function () { return auth_1.provisionTeacherClass; } });
 Object.defineProperty(exports, "linkParentToStudent", { enumerable: true, get: function () { return auth_1.linkParentToStudent; } });
+Object.defineProperty(exports, "reviewUserRegistration", { enumerable: true, get: function () { return auth_1.reviewUserRegistration; } });
 // Exportar Triggers Reativos do Firestore
 var triggers_1 = require("./triggers");
 Object.defineProperty(exports, "onAccessLogCreated", { enumerable: true, get: function () { return triggers_1.onAccessLogCreated; } });

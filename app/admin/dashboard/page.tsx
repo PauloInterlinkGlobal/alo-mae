@@ -17,11 +17,18 @@ import {
   Sparkles,
   AlertCircle,
   ExternalLink,
+  Mail,
 } from 'lucide-react';
+import { GmailActionModal } from '@/components/GmailActionModal';
 
 export default function AdminDashboardPage() {
   const { logs, students, classStats, setSelectedReceiptLog } = useSystem();
   const [chartView, setChartView] = useState<'week' | 'month'>('week');
+  const [isGmailModalOpen, setIsGmailModalOpen] = useState<boolean>(false);
+  const [selectedStudentForEmail, setSelectedStudentForEmail] = useState<{
+    name: string;
+    parentEmail: string;
+  } | null>(null);
 
   const totalStudents = students.length;
   const totalBiometricScans = 1842 + logs.length;
@@ -59,6 +66,16 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setSelectedStudentForEmail(null);
+              setIsGmailModalOpen(true);
+            }}
+            className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-800 border border-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold shadow-xs transition-all cursor-pointer"
+          >
+            <Mail className="w-4 h-4 text-red-500" />
+            <span>Comunicação via Gmail</span>
+          </button>
           <Link
             href="/admin/terminal-simulado"
             className="flex items-center gap-2 bg-[#143A7B] hover:bg-[#0D1B3D] text-white px-4 py-2.5 rounded-xl text-xs font-semibold shadow-sm transition-all"
@@ -366,6 +383,14 @@ export default function AdminDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Gmail Action Modal for sending official notifications */}
+      <GmailActionModal
+        isOpen={isGmailModalOpen}
+        onClose={() => setIsGmailModalOpen(false)}
+        defaultStudentName={selectedStudentForEmail?.name || ''}
+        defaultRecipient={selectedStudentForEmail?.parentEmail || ''}
+      />
     </div>
   );
 }

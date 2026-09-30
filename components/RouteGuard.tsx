@@ -4,7 +4,7 @@ import React, { useSyncExternalStore } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSystem } from '@/lib/context';
 import { UserRole } from '@/lib/types';
-import { ShieldAlert, LogIn, ArrowRight, UserX, KeyRound } from 'lucide-react';
+import { ShieldAlert, LogIn, ArrowRight, UserX, KeyRound, Clock } from 'lucide-react';
 import { Logo } from '@/components/LogoImg';
 
 interface RouteGuardProps {
@@ -64,6 +64,90 @@ export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }
           >
             <span>Ir para o Ecrã de Login</span>
             <ArrowRight className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If account is pending approval
+  if (currentUser.status === 'pending') {
+    return (
+      <div className="min-h-screen bg-[#0D1B3D] flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
+          <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-amber-600">
+            <Clock className="w-8 h-8" />
+          </div>
+          <h2 className="font-['Poppins',sans-serif] font-bold text-xl text-[#0D1B3D] mb-2">
+            Conta Pendente de Aprovação
+          </h2>
+          <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+            O seu cadastro foi realizado com sucesso e está aguardando aprovação pela instituição de ensino. Poderá aceder aos recursos da plataforma assim que a administração aprovar a sua conta.
+          </p>
+          <button
+            onClick={() => {
+              logout();
+              router.push('/');
+            }}
+            className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-3 px-4 rounded-xl font-medium transition-all shadow-md cursor-pointer"
+          >
+            Terminar Sessão e Voltar ao Início
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If account is rejected
+  if (currentUser.status === 'rejected') {
+    return (
+      <div className="min-h-screen bg-[#0D1B3D] flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
+          <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-rose-600">
+            <UserX className="w-8 h-8" />
+          </div>
+          <h2 className="font-['Poppins',sans-serif] font-bold text-xl text-[#0D1B3D] mb-2">
+            Cadastro Rejeitado
+          </h2>
+          <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+            Este cadastro foi rejeitado pela instituição. Para mais informações, contacte a secretaria escolar.
+          </p>
+          <button
+            onClick={() => {
+              logout();
+              router.push('/');
+            }}
+            className="w-full bg-slate-900 hover:bg-black text-white py-3 px-4 rounded-xl font-medium transition-all shadow-md cursor-pointer"
+          >
+            Terminar Sessão e Voltar ao Início
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If account is suspended
+  if (currentUser.status === 'suspended') {
+    return (
+      <div className="min-h-screen bg-[#0D1B3D] flex items-center justify-center p-4">
+        <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl text-center">
+          <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-rose-600">
+            <UserX className="w-8 h-8" />
+          </div>
+          <h2 className="font-['Poppins',sans-serif] font-bold text-xl text-[#0D1B3D] mb-2">
+            Conta Suspensa
+          </h2>
+          <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+            Esta conta está suspensa. Contacte a instituição.
+          </p>
+          <button
+            onClick={() => {
+              logout();
+              router.push('/');
+            }}
+            className="w-full bg-slate-900 hover:bg-black text-white py-3 px-4 rounded-xl font-medium transition-all shadow-md cursor-pointer"
+          >
+            Terminar Sessão e Voltar ao Início
           </button>
         </div>
       </div>

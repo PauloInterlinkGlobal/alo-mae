@@ -90,6 +90,19 @@ service cloud.firestore {
     }
 
     // ==========================================================
+    // 0. Coleções de Escolas e Instituições (schools e institutions)
+    // ==========================================================
+    match /schools/{schoolId} {
+      allow read: if true;
+      allow write: if isInstitutionUser();
+    }
+
+    match /institutions/{institutionId} {
+      allow read: if true;
+      allow write: if isInstitutionUser();
+    }
+
+    // ==========================================================
     // 1. Coleções de Turmas (classes e turmas)
     // ==========================================================
     match /classes/{classId} {
@@ -118,10 +131,24 @@ service cloud.firestore {
         isInstitutionUser() ||
         isTeacher()
       );
-      allow create: if isInstitutionUser() || (isAuthenticated() && request.auth.uid == userId);
+      allow create: if isInstitutionUser() || (
+        isAuthenticated() &&
+        request.auth.uid == userId &&
+        request.resource.data.role in ['pai', 'professor'] &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.active == false &&
+        request.resource.data.authProvider == 'google' &&
+        request.resource.data.uid == request.auth.uid &&
+        (!('schoolId' in request.resource.data) || request.resource.data.schoolId == null || request.resource.data.schoolId == '') &&
+        (!('schoolIds' in request.resource.data) || request.resource.data.schoolIds.size() == 0) &&
+        (!('studentIds' in request.resource.data) || request.resource.data.studentIds.size() == 0) &&
+        (!('classIds' in request.resource.data) || request.resource.data.classIds.size() == 0)
+      );
       allow update: if isInstitutionUser() || (
         isOwner(userId) &&
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'schoolIds', 'studentIds', 'createdBy'])
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'role', 'status', 'active', 'schoolId', 'schoolIds', 'studentId', 'studentIds', 'classId', 'classIds', 'createdBy', 'authProvider'
+        ])
       );
       allow delete: if isInstitutionUser();
     }

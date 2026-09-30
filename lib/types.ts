@@ -50,6 +50,8 @@ export interface UserProfile {
   phone?: string;
   avatarUrl?: string;
   active?: boolean;
+  status?: 'pending' | 'active' | 'rejected' | 'suspended';
+  authProvider?: 'password' | 'google';
   emailVerified?: boolean;
   studentIds?: string[];
   schoolIds?: string[];

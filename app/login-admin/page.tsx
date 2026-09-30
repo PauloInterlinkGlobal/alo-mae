@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useSystem } from '@/lib/context';
+import { useToast } from '@/components/Toast';
 import { loginUser, sendPasswordReset } from '@/services/auth.service';
 import { Logo } from '@/components/LogoImg';
 import {
@@ -17,14 +18,17 @@ import {
   CheckCircle,
   ArrowLeft,
   AlertCircle,
+  Loader2,
+  X,
 } from 'lucide-react';
 
 export default function LoginInstituicaoPage() {
   const router = useRouter();
   const { setCurrentUser } = useSystem();
+  const toast = useToast();
 
-  const [email, setEmail] = useState<string>('');
-  const [password, setPassword] = useState<string>('');
+  const [email, setEmail] = useState<string>('paulopintodesenvolvedor@gmail.com');
+  const [password, setPassword] = useState<string>('intituicao123');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -33,14 +37,49 @@ export default function LoginInstituicaoPage() {
   const [resetEmail, setResetEmail] = useState<string>('');
   const [isSendingReset, setIsSendingReset] = useState<boolean>(false);
 
+  const fillAndLogin = async (adminEmail: string, adminPass: string) => {
+    setEmail(adminEmail);
+    setPassword(adminPass);
+    setIsLoading(true);
+    setErrorMsg('');
+    setResetSuccessMsg('');
+    toast.info('Autenticando conta institucional demonstrativa...', 'Acesso Rápido');
+
+    try {
+      const { user } = await loginUser(adminEmail.trim(), adminPass, 'instituicao');
+      const userAccount = {
+        ...user,
+        id: user.uid,
+        name: user.name || user.nome || 'Paulo Pinto',
+        phone: user.phone || user.telefone || '+244 923 000 001',
+        schoolName: 'Colégio Horizonte de Luanda',
+      };
+      setCurrentUser(userAccount);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('alomae_user', JSON.stringify(userAccount));
+      }
+      toast.success('Sessão iniciada como Administrador Principal.', 'Acesso Concedido');
+      router.push('/admin/dashboard');
+    } catch (err: any) {
+      const formatted = err.message || 'Falha ao autenticar credenciais institucionais.';
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Erro de Autenticação');
+      setIsLoading(false);
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) {
-      setErrorMsg('Por favor, informe o e-mail institucional do administrador.');
+      const msg = 'Por favor, informe o e-mail institucional do administrador.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Campo Obrigatório');
       return;
     }
     if (!password) {
-      setErrorMsg('Por favor, informe a sua palavra-passe.');
+      const msg = 'Por favor, informe a sua palavra-passe.';
+      setErrorMsg(msg);
+      toast.warning(msg, 'Campo Obrigatório');
       return;
     }
 
@@ -65,27 +104,39 @@ export default function LoginInstituicaoPage() {
         localStorage.setItem('alomae_user', JSON.stringify(userAccount));
       }
 
+      toast.success('Credenciais validadas com sucesso.', 'Acesso Institucional');
       router.push('/admin/dashboard');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Ocorreu um erro ao autenticar no painel administrativo.');
+      const formatted = err.message || 'Falha ao autenticar credenciais institucionais.';
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Falha no Acesso');
       setIsLoading(false);
     }
   };
 
   const handleSendResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!resetEmail.trim()) return;
+    if (!resetEmail.trim()) {
+      const msg = 'Por favor, introduza o e-mail institucional para redefinir a palavra-passe.';
+      setErrorMsg(msg);
+      toast.warning(msg);
+      return;
+    }
 
     setIsSendingReset(true);
     setErrorMsg('');
 
     try {
       await sendPasswordReset(resetEmail.trim());
-      setResetSuccessMsg(`Um e-mail de recuperação foi enviado para ${resetEmail}.`);
+      const msg = `Um e-mail de recuperação foi enviado para ${resetEmail}. Verifique o seu Gmail.`;
+      setResetSuccessMsg(msg);
+      toast.success(msg, 'Recuperação Enviada');
       setShowResetModal(false);
       setResetEmail('');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Não foi possível enviar o e-mail de recuperação.');
+      const formatted = err.message || 'Erro ao enviar e-mail de recuperação.';
+      setErrorMsg(formatted);
+      toast.error(formatted, 'Erro na Recuperação');
     } finally {
       setIsSendingReset(false);
     }
@@ -131,19 +182,72 @@ export default function LoginInstituicaoPage() {
           </div>
 
           <div className="p-6 sm:p-7">
+            {/* Feedback Banners */}
             {resetSuccessMsg && (
-              <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{resetSuccessMsg}</span>
+              <div className="mb-4 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-start justify-between gap-2 shadow-xs animate-fade-in">
+                <div className="flex items-start gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span className="leading-snug">{resetSuccessMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setResetSuccessMsg('')}
+                  className="text-emerald-600 hover:text-emerald-800 p-0.5 rounded cursor-pointer"
+                  title="Fechar mensagem"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
 
             {errorMsg && (
-              <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                <span className="leading-snug">{errorMsg}</span>
+              <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-start justify-between gap-2 shadow-xs animate-fade-in">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span className="leading-snug font-medium">{errorMsg}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorMsg('')}
+                  className="text-rose-500 hover:text-rose-800 p-0.5 rounded cursor-pointer"
+                  title="Fechar erro"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
+
+            {/* Admin Quick Credentials Card */}
+            <div className="mb-5 p-3.5 bg-blue-50/80 border border-blue-200/80 rounded-2xl">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[11px] font-bold text-[#143A7B] uppercase tracking-wider flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-blue-600" />
+                  Conta de Administrador Geral
+                </span>
+                <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
+                  Oficial
+                </span>
+              </div>
+              <div className="text-xs text-slate-700 space-y-1 mb-3 bg-white p-2.5 rounded-xl border border-blue-100 font-mono text-[11px]">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-sans">E-mail:</span>
+                  <span className="font-semibold text-slate-900">paulopintodesenvolvedor@gmail.com</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-sans">Palavra-passe:</span>
+                  <span className="font-semibold text-slate-900">intituicao123</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => fillAndLogin('paulopintodesenvolvedor@gmail.com', 'intituicao123')}
+                disabled={isLoading}
+                className="w-full bg-[#143A7B] hover:bg-[#0D1B3D] text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 shadow-xs transition-all active:scale-[0.99] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-cyan-300" />
+                <span>Preencher e Entrar como Paulo Pinto (Admin)</span>
+              </button>
+            </div>
 
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
@@ -158,9 +262,10 @@ export default function LoginInstituicaoPage() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    disabled={isLoading}
                     required
                     placeholder="ex: direcao@colegiohorizonte.ao"
-                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -189,9 +294,10 @@ export default function LoginInstituicaoPage() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    disabled={isLoading}
                     required
                     placeholder="••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-transparent transition-all disabled:opacity-60 disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
@@ -206,11 +312,11 @@ export default function LoginInstituicaoPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full mt-2 bg-slate-900 hover:bg-black active:scale-[0.99] text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 transition-all cursor-pointer disabled:opacity-70"
+                className="w-full mt-2 bg-slate-900 hover:bg-black active:scale-[0.99] text-white py-3 px-4 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 shadow-lg shadow-slate-900/20 transition-all cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
                     <span>Autenticando no Firebase Auth...</span>
                   </>
                 ) : (

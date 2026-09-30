@@ -381,3 +381,71 @@ export const linkParentToStudent = onCall(async (request: CallableRequest) => {
 
   return { success: true };
 });
+
+/**
+ * HTTPS Callable: reviewUserRegistration
+ * Analisa e aprova, rejeita ou suspende autocadastro de pai ou professor.
+ * Só executável por instituição escolar ou administrador autenticado.
+ */
+export const reviewUserRegistration = onCall(async (request: CallableRequest) => {
+  if (!request.auth) {
+    throw new HttpsError('unauthenticated', 'É necessária autenticação para analisar cadastros.');
+  }
+
+  const callerRole = request.auth.token.role;
+  const schoolId = request.auth.token.schoolId;
+
+  if (callerRole !== 'instituicao' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', 'Apenas a instituição ou administrador pode analisar cadastros.');
+  }
+
+  const { targetUid, action } = request.data as {
+    targetUid: string;
+    action: 'approve' | 'reject' | 'suspend';
+  };
+
+  if (!targetUid || !['approve', 'reject', 'suspend'].includes(action)) {
+    throw new HttpsError('invalid-argument', 'Parâmetros targetUid e action (approve|reject|suspend) obrigatórios.');
+  }
+
+  const userRef = db.collection('users').doc(targetUid);
+  const userSnap = await userRef.get();
+  if (!userSnap.exists) {
+    throw new HttpsError('not-found', 'Utilizador não encontrado.');
+  }
+
+  const userData = userSnap.data()!;
+  const newStatus = action === 'approve' ? 'active' : action === 'reject' ? 'rejected' : 'suspended';
+  const newActive = action === 'approve';
+
+  const updatePayload: Record<string, any> = {
+    status: newStatus,
+    active: newActive,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (action === 'approve' && schoolId && !userData.schoolId) {
+    updatePayload.schoolId = schoolId;
+    updatePayload.schoolIds = admin.firestore.FieldValue.arrayUnion(schoolId);
+  }
+
+  await userRef.update(updatePayload);
+
+  // Trilha de Auditoria
+  await db.collection('auditLogs').add({
+    institutionId: schoolId || 'inst_horizonte_01',
+    actorUid: request.auth.uid,
+    actorName: request.auth.token.name || request.auth.token.email || 'Administrador',
+    actorRole: callerRole,
+    action: `registration_${action}`,
+    entityType: 'users',
+    entityId: targetUid,
+    description: `Registo de ${userData.role} (${userData.name || userData.email}) foi ${
+      action === 'approve' ? 'aprovado' : action === 'reject' ? 'rejeitado' : 'suspenso'
+    }`,
+    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  return { success: true, status: newStatus, active: newActive };
+});
+

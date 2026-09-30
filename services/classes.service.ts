@@ -16,9 +16,45 @@ import { SchoolClass, TeacherAssignment } from '@/lib/types';
 // Fallback pré-definido para início de operações
 export const DEFAULT_CLASSES: SchoolClass[] = [
   {
+    id: 'turma_1A',
+    name: '1ª Classe A',
+    className: '1ª Classe',
+    schoolId: 'school_horizonte_luanda',
+    room: 'Sala 101',
+    shift: 'manha',
+    teacherIds: ['maria.santos@alo-mae.co.ao', 'ana.silva@alo-mae.co.ao'],
+    disciplinas: ['Língua Portuguesa', 'Matemática', 'Estudo do Meio'],
+    studentCount: 2,
+    active: true,
+  },
+  {
+    id: 'turma_2A',
+    name: '2ª Classe A',
+    className: '2ª Classe',
+    schoolId: 'school_horizonte_luanda',
+    room: 'Sala 102',
+    shift: 'tarde',
+    teacherIds: ['prof.teste1@alo-mae.co.ao'],
+    disciplinas: ['Língua Portuguesa', 'Matemática', 'Ciências Naturais'],
+    studentCount: 2,
+    active: true,
+  },
+  {
+    id: 'turma_3A',
+    name: '3ª Classe A',
+    className: '3ª Classe',
+    schoolId: 'school_horizonte_luanda',
+    room: 'Sala 103',
+    shift: 'manha',
+    teacherIds: ['manuel.domingos@alo-mae.co.ao'],
+    disciplinas: ['Língua Portuguesa', 'Matemática', 'História', 'Geografia'],
+    studentCount: 2,
+    active: true,
+  },
+  {
     id: 'turma_1a',
     name: '1º Ano A - Manhã',
-    schoolId: 'inst_horizonte_01',
+    schoolId: 'school_horizonte_luanda',
     teacherIds: ['prof_manuel_01'],
     studentCount: 24,
     active: true,
@@ -26,7 +62,7 @@ export const DEFAULT_CLASSES: SchoolClass[] = [
   {
     id: 'turma_2b',
     name: '2º Ano B - Tarde',
-    schoolId: 'inst_horizonte_01',
+    schoolId: 'school_horizonte_luanda',
     teacherIds: ['prof_ana_02'],
     studentCount: 28,
     active: true,
@@ -34,22 +70,14 @@ export const DEFAULT_CLASSES: SchoolClass[] = [
   {
     id: 'turma_3c',
     name: '3º Ano C - Manhã',
-    schoolId: 'inst_horizonte_01',
+    schoolId: 'school_horizonte_luanda',
     teacherIds: ['prof_manuel_01', 'prof_ana_02'],
     studentCount: 22,
     active: true,
   },
-  {
-    id: 'turma_4a',
-    name: '4º Ano A - Manhã',
-    schoolId: 'inst_horizonte_01',
-    teacherIds: [],
-    studentCount: 19,
-    active: true,
-  },
 ];
 
-export async function getClasses(schoolId: string = 'inst_horizonte_01'): Promise<SchoolClass[]> {
+export async function getClasses(schoolId: string = 'school_horizonte_luanda'): Promise<SchoolClass[]> {
   try {
     const q = query(
       collection(db, 'classes'),

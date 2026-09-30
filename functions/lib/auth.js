@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.linkParentToStudent = exports.provisionTeacherClass = exports.provisionTerminalDevice = exports.enrollTeacher = exports.enrollStudent = void 0;
+exports.reviewUserRegistration = exports.linkParentToStudent = exports.provisionTeacherClass = exports.provisionTerminalDevice = exports.enrollTeacher = exports.enrollStudent = void 0;
 exports.setUserCustomClaims = setUserCustomClaims;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
@@ -349,5 +349,55 @@ exports.linkParentToStudent = (0, https_1.onCall)(async (request) => {
         schoolIds: admin.firestore.FieldValue.arrayUnion(schoolId),
     }, { merge: true });
     return { success: true };
+});
+/**
+ * HTTPS Callable: reviewUserRegistration
+ * Analisa e aprova, rejeita ou suspende autocadastro de pai ou professor.
+ * Só executável por instituição escolar ou administrador autenticado.
+ */
+exports.reviewUserRegistration = (0, https_1.onCall)(async (request) => {
+    if (!request.auth) {
+        throw new https_1.HttpsError('unauthenticated', 'É necessária autenticação para analisar cadastros.');
+    }
+    const callerRole = request.auth.token.role;
+    const schoolId = request.auth.token.schoolId;
+    if (callerRole !== 'instituicao' && callerRole !== 'admin') {
+        throw new https_1.HttpsError('permission-denied', 'Apenas a instituição ou administrador pode analisar cadastros.');
+    }
+    const { targetUid, action } = request.data;
+    if (!targetUid || !['approve', 'reject', 'suspend'].includes(action)) {
+        throw new https_1.HttpsError('invalid-argument', 'Parâmetros targetUid e action (approve|reject|suspend) obrigatórios.');
+    }
+    const userRef = db.collection('users').doc(targetUid);
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+        throw new https_1.HttpsError('not-found', 'Utilizador não encontrado.');
+    }
+    const userData = userSnap.data();
+    const newStatus = action === 'approve' ? 'active' : action === 'reject' ? 'rejected' : 'suspended';
+    const newActive = action === 'approve';
+    const updatePayload = {
+        status: newStatus,
+        active: newActive,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (action === 'approve' && schoolId && !userData.schoolId) {
+        updatePayload.schoolId = schoolId;
+        updatePayload.schoolIds = admin.firestore.FieldValue.arrayUnion(schoolId);
+    }
+    await userRef.update(updatePayload);
+    // Trilha de Auditoria
+    await db.collection('auditLogs').add({
+        institutionId: schoolId || 'inst_horizonte_01',
+        actorUid: request.auth.uid,
+        actorName: request.auth.token.name || request.auth.token.email || 'Administrador',
+        actorRole: callerRole,
+        action: `registration_${action}`,
+        entityType: 'users',
+        entityId: targetUid,
+        description: `Registo de ${userData.role} (${userData.name || userData.email}) foi ${action === 'approve' ? 'aprovado' : action === 'reject' ? 'rejeitado' : 'suspenso'}`,
+        timestamp: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { success: true, status: newStatus, active: newActive };
 });
 //# sourceMappingURL=auth.js.map
