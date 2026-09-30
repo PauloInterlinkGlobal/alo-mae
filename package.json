@@ -12,7 +12,7 @@
     "android:build": "cd android && ./gradlew assembleDebug",
     "start": "next start",
     "lint": "eslint .",
-    "clean": "next clean"
+    "clean": "node -e 'require(\"node:fs\").rmSync(\".next\",{recursive:true,force:true})'"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

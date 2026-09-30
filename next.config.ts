@@ -25,8 +25,9 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Keep the development output compatible with the preview server. Standalone
-  // output is only needed for a separately packaged production container.
+  // Keep preview development artifacts separate from production builds.
+  distDir:
+    process.env.NEXT_PHASE === 'phase-development-server' ? '.next-dev' : '.next',
   transpilePackages: ['motion'],
 
 };
