@@ -61,7 +61,7 @@ export default function LoginEncarregadoPage() {
         router.push('/pai/inicio');
       } else {
         // Pending, rejected, or suspended
-        setPendingNotice(result.message || 'Registo submetido. A sua conta aguarda aprovação pela administração escolar.');
+        setPendingNotice(result.message);
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'Ocorreu um erro ao autenticar com o Google.');
@@ -342,7 +342,7 @@ export default function LoginEncarregadoPage() {
               <p className="text-[11px] text-slate-500">
                 O autocadastro com Google para encarregados está sujeito à validação da escola.
               </p>
-              <div className="mt-3 flex items-center justify-center gap-3 text-xs">
+              <div className="mt-3 flex items-center justify-center gap-3 text-xs" hidden>
                 <Link href="/login-prof" className="text-slate-500 hover:text-[#143A7B]">
                   Sou Professor
                 </Link>
