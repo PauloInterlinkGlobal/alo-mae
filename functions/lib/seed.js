@@ -36,6 +36,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedDatabase = void 0;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
+// Garantir inicialização do SDK Admin com o projeto liga-so
+if (!admin.apps.length) {
+    admin.initializeApp({
+        projectId: process.env.GCLOUD_PROJECT || 'liga-so',
+        storageBucket: process.env.STORAGE_BUCKET || 'liga-so.firebasestorage.app',
+    });
+}
 const db = admin.firestore();
 exports.seedDatabase = (0, https_1.onCall)(async (request) => {
     // Apenas utilizadores com role instituicao ou admin podem disparar o seed

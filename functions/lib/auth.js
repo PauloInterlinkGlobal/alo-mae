@@ -37,6 +37,13 @@ exports.linkParentToStudent = exports.provisionTeacherClass = exports.provisionT
 exports.setUserCustomClaims = setUserCustomClaims;
 const admin = __importStar(require("firebase-admin"));
 const https_1 = require("firebase-functions/v2/https");
+// Garantir inicialização do SDK Admin com o projeto liga-so
+if (!admin.apps.length) {
+    admin.initializeApp({
+        projectId: process.env.GCLOUD_PROJECT || 'liga-so',
+        storageBucket: process.env.STORAGE_BUCKET || 'liga-so.firebasestorage.app',
+    });
+}
 const auth = admin.auth();
 const db = admin.firestore();
 /**

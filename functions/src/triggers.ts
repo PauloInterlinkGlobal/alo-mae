@@ -2,6 +2,14 @@ import * as admin from 'firebase-admin';
 import { onDocumentCreated, onDocumentUpdated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { AccessLogDoc, StudentDoc, MiniPautaDoc } from './types';
 
+// Garantir inicialização do SDK Admin com o projeto liga-so
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: process.env.GCLOUD_PROJECT || 'liga-so',
+    storageBucket: process.env.STORAGE_BUCKET || 'liga-so.firebasestorage.app',
+  });
+}
+
 const db = admin.firestore();
 const messaging = admin.messaging();
 
@@ -175,7 +183,7 @@ export const onMiniPautaApproved = onDocumentUpdated('miniPautas/{pautaId}', asy
   if (!beforeData || !afterData) return;
 
   if (beforeData.status !== 'approved' && afterData.status === 'approved') {
-    const { studentId, studentName, period, average, classId, schoolId, professorName, grades } = afterData;
+    const { studentId, studentName, period, average, classId, schoolId, professorName } = afterData;
 
     const notifId = `notif_pauta_${event.params.pautaId}`;
     const notificationData = {

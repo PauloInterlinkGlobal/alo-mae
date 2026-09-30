@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useSyncExternalStore } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useSystem } from '@/lib/context';
 import { UserRole } from '@/lib/types';
@@ -12,10 +12,29 @@ interface RouteGuardProps {
   allowedRoles: UserRole[];
 }
 
+const emptySubscribe = () => () => {};
+
 export const RouteGuard: React.FC<RouteGuardProps> = ({ children, allowedRoles }) => {
   const { currentUser, isAuthenticated, logout } = useSystem();
   const router = useRouter();
   const pathname = usePathname();
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+
+  // During SSR and initial client hydration, render consistent placeholder to avoid mismatch
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#0D1B3D] flex items-center justify-center p-4">
+        <div className="text-center text-white">
+          <div className="w-10 h-10 border-3 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="font-['Poppins',sans-serif] text-xs text-blue-200">A verificar credenciais...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Determine appropriate login route based on target roles
   const getLoginRoute = () => {

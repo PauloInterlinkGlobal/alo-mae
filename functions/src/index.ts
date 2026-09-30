@@ -1,8 +1,11 @@
 import * as admin from 'firebase-admin';
 
-// Inicializar SDK Admin do Firebase
+// Inicializar SDK Admin do Firebase para o projeto liga-so
 if (!admin.apps.length) {
-  admin.initializeApp();
+  admin.initializeApp({
+    projectId: process.env.GCLOUD_PROJECT || 'liga-so',
+    storageBucket: process.env.STORAGE_BUCKET || 'liga-so.firebasestorage.app',
+  });
 }
 
 // Exportar Funções de Matrícula, Professores e Dispositivos (HTTPS Callables)

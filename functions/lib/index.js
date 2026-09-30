@@ -35,9 +35,12 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.seedDatabase = exports.onGradeApproved = exports.onMiniPautaApproved = exports.recalculateClassStats = exports.onAccessLogCreated = exports.linkParentToStudent = exports.provisionTeacherClass = exports.provisionTerminalDevice = exports.enrollTeacher = exports.enrollStudent = void 0;
 const admin = __importStar(require("firebase-admin"));
-// Inicializar SDK Admin do Firebase
+// Inicializar SDK Admin do Firebase para o projeto liga-so
 if (!admin.apps.length) {
-    admin.initializeApp();
+    admin.initializeApp({
+        projectId: process.env.GCLOUD_PROJECT || 'liga-so',
+        storageBucket: process.env.STORAGE_BUCKET || 'liga-so.firebasestorage.app',
+    });
 }
 // Exportar Funções de Matrícula, Professores e Dispositivos (HTTPS Callables)
 var auth_1 = require("./auth");

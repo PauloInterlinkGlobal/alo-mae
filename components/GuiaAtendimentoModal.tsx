@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Student, MedicalClinic, MedicalGuide } from '@/lib/types';
 import { Logo } from './LogoImg';
 import {
@@ -54,14 +54,17 @@ export const GuiaAtendimentoModal: React.FC<GuiaAtendimentoModalProps> = ({
     return `GUIA-MED-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}-${rawMatricula}`;
   }, [student, now]);
 
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => 'https://alomae.ao'
+  );
+
   // Public safe validation URL (Requisito 36: sem senhas, tokens ou dados médicos confidenciais)
   const validationUrl = useMemo(() => {
     if (!guideNumber) return '';
-    if (typeof window !== 'undefined') {
-      return `${window.location.origin}/validar/guia/${guideNumber}`;
-    }
-    return `https://alomae.ao/validar/guia/${guideNumber}`;
-  }, [guideNumber]);
+    return `${origin}/validar/guia/${guideNumber}`;
+  }, [guideNumber, origin]);
 
   // Requisito 34: Segurança da Guia Médica
   // Verificar no Frontend se o studentId pertence ao encarregado autenticado

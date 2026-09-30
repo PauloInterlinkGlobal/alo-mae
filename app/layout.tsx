@@ -41,7 +41,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-AO" className="scroll-smooth">
+    <html lang="pt-AO" className="scroll-smooth" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -50,7 +50,10 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased font-['Inter',sans-serif] bg-[#F8F9FF] text-[#121C28] min-h-screen select-none overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+      <body
+        suppressHydrationWarning
+        className="antialiased font-['Inter',sans-serif] bg-[#F8F9FF] text-[#121C28] min-h-screen select-none overflow-x-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]"
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

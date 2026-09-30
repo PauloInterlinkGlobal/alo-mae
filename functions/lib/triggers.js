@@ -36,6 +36,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.onGradeApproved = exports.onMiniPautaApproved = exports.recalculateClassStats = exports.onAccessLogCreated = void 0;
 const admin = __importStar(require("firebase-admin"));
 const firestore_1 = require("firebase-functions/v2/firestore");
+// Garantir inicialização do SDK Admin com o projeto liga-so
+if (!admin.apps.length) {
+    admin.initializeApp({
+        projectId: process.env.GCLOUD_PROJECT || 'liga-so',
+        storageBucket: process.env.STORAGE_BUCKET || 'liga-so.firebasestorage.app',
+    });
+}
 const db = admin.firestore();
 const messaging = admin.messaging();
 /**
@@ -188,7 +195,7 @@ exports.onMiniPautaApproved = (0, firestore_1.onDocumentUpdated)('miniPautas/{pa
     if (!beforeData || !afterData)
         return;
     if (beforeData.status !== 'approved' && afterData.status === 'approved') {
-        const { studentId, studentName, period, average, classId, schoolId, professorName, grades } = afterData;
+        const { studentId, studentName, period, average, classId, schoolId, professorName } = afterData;
         const notifId = `notif_pauta_${event.params.pautaId}`;
         const notificationData = {
             id: notifId,

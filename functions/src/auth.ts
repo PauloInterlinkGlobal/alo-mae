@@ -2,6 +2,14 @@ import * as admin from 'firebase-admin';
 import { onCall, HttpsError, CallableRequest } from 'firebase-functions/v2/https';
 import { CustomClaims } from './types';
 
+// Garantir inicialização do SDK Admin com o projeto liga-so
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: process.env.GCLOUD_PROJECT || 'liga-so',
+    storageBucket: process.env.STORAGE_BUCKET || 'liga-so.firebasestorage.app',
+  });
+}
+
 const auth = admin.auth();
 const db = admin.firestore();
 
